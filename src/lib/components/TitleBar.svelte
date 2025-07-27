@@ -27,6 +27,8 @@
 	class="bg-background border-border flex flex-shrink-0 items-center justify-between border-b p-4 select-none"
 	data-tauri-drag-region
 	ondblclick={toggleMaximize}
+	role="button"
+	tabindex="0"
 >
 	<!-- Linke Seite: Icon + Titel -->
 	<div class="flex items-center gap-3">
@@ -42,6 +44,7 @@
 			<button
 				class="hover:bg-muted text-muted-foreground hover:text-foreground flex h-8 w-8 items-center justify-center rounded transition-colors"
 				onclick={minimize}
+				aria-label="Minimize"
 			>
 				<svg class="h-4 w-4" fill="currentColor" viewBox="0 0 20 20">
 					<path d="M4 10h12v2H4z"></path>
@@ -50,6 +53,7 @@
 			<button
 				class="hover:bg-muted text-muted-foreground hover:text-foreground flex h-8 w-8 items-center justify-center rounded transition-colors"
 				onclick={toggleMaximize}
+				aria-label="Toggle Maximize"
 			>
 				<svg class="h-4 w-4" fill="currentColor" viewBox="0 0 20 20">
 					<path d="M4 4h12v12H4V4zm2 2v8h8V6H6z"></path>
@@ -58,6 +62,7 @@
 			<button
 				class="hover:bg-destructive hover:text-destructive-foreground text-muted-foreground flex h-8 w-8 items-center justify-center rounded transition-colors"
 				onclick={close}
+				aria-label="Close"
 			>
 				<svg class="h-4 w-4" fill="currentColor" viewBox="0 0 20 20">
 					<path

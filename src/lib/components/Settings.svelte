@@ -1,14 +1,104 @@
 <script lang="ts">
 	import { Button } from '$lib/components/ui/button/index';
+	import { Switch } from '$lib/components/ui/switch/index';
 	import { ArrowLeft } from '@lucide/svelte';
-	import { createEventDispatcher } from 'svelte';
+	import { createEventDispatcher, onMount } from 'svelte';
+	import { enable, disable, isEnabled } from '@tauri-apps/plugin-autostart';
+	import { invoke } from '@tauri-apps/api/core';
 	import TitleBar from './TitleBar.svelte';
 
 	const dispatch = createEventDispatcher<{ close: void }>();
 
+	let autostartEnabled = $state(false);
+	let loading = $state(true);
+	let updating = $state(false);
+
 	function handleClose() {
 		dispatch('close');
 	}
+
+	// Neue vereinfachte Funktion zum Laden der Autostart-Einstellung
+	async function loadAutostartSetting() {
+		try {
+			console.log('[Frontend] Loading autostart setting...');
+			loading = true;
+			
+			// Lade die gespeicherte Einstellung aus der Backend-Datei
+			const savedSetting = await invoke<boolean>('get_autostart_setting');
+			console.log('[Frontend] Saved autostart setting:', savedSetting);
+			
+			// Prüfe den aktuellen System-Autostart-Status
+			const systemEnabled = await isEnabled();
+			console.log('[Frontend] System autostart enabled:', systemEnabled);
+			
+			// Verwende die gespeicherte Einstellung als Wahrheit
+			autostartEnabled = savedSetting;
+			
+			// Synchronisiere das System mit der gespeicherten Einstellung
+			if (systemEnabled !== savedSetting) {
+				console.log('[Frontend] Syncing system with saved setting...');
+				if (savedSetting) {
+					await enable();
+					console.log('[Frontend] Autostart enabled in system');
+				} else {
+					await disable();
+					console.log('[Frontend] Autostart disabled in system');
+				}
+			}
+		} catch (error) {
+			console.error('[Frontend] Failed to load autostart setting:', error);
+			// Fallback: verwende System-Status
+			try {
+				autostartEnabled = await isEnabled();
+			} catch (fallbackError) {
+				console.error('[Frontend] Fallback failed:', fallbackError);
+				autostartEnabled = false;
+			}
+		} finally {
+			loading = false;
+		}
+	}
+
+	// Neue vereinfachte Funktion zum Umschalten der Autostart-Einstellung
+	async function toggleAutostart(checked: boolean) {
+		if (loading || updating) {
+			console.log('[Frontend] Ignoring toggle - loading or updating');
+			return;
+		}
+		
+		try {
+			console.log('[Frontend] Toggling autostart to:', checked);
+			updating = true;
+			
+			// Aktualisiere zuerst die UI
+			autostartEnabled = checked;
+			
+			// Aktualisiere das System
+			if (checked) {
+				await enable();
+				console.log('[Frontend] Autostart enabled in system');
+			} else {
+				await disable();
+				console.log('[Frontend] Autostart disabled in system');
+			}
+			
+			// Speichere die Einstellung in der Backend-Datei
+			await invoke('update_autostart_setting', { enabled: checked });
+			console.log('[Frontend] Autostart setting saved to backend');
+			
+		} catch (error) {
+			console.error('[Frontend] Failed to toggle autostart:', error);
+			// Revertiere bei Fehler
+			autostartEnabled = !checked;
+			console.log('[Frontend] Reverted autostart setting due to error');
+		} finally {
+			updating = false;
+		}
+	}
+
+	onMount(() => {
+		loadAutostartSetting();
+	});
 </script>
 
 <div class="flex h-screen flex-col overflow-hidden">
@@ -34,9 +124,27 @@
 					<h1 class="text-heading text-foreground mb-4 text-3xl">Einstellungen</h1>
 				</div>
 
-				<!-- Placeholder für zukünftige Einstellungen -->
-				<div class="bg-card border-border rounded-3xl border p-8 text-center">
-					<p class="text-muted-foreground text-body">Einstellungen werden hier angezeigt</p>
+				<!-- Autostart Einstellung -->
+				<div class="bg-card border-border rounded-3xl border p-8">
+					<div class="space-y-6">
+						<div class="flex items-center justify-between">
+							<div class="space-y-1">
+								<h3 class="text-heading text-card-foreground text-lg">Autostart</h3>
+								<p class="text-muted-foreground text-body text-sm">App automatisch beim Systemstart starten</p>
+							</div>
+							<div class="flex items-center">
+								{#if loading}
+									<div class="animate-spin rounded-full h-5 w-5 border-b-2 border-primary"></div>
+								{:else}
+									<Switch 
+										bind:checked={autostartEnabled} 
+										disabled={loading || updating}
+										onCheckedChange={toggleAutostart}
+									/>
+								{/if}
+							</div>
+						</div>
+					</div>
 				</div>
 			</div>
 		</div>

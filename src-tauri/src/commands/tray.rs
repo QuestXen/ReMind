@@ -1,6 +1,6 @@
-use tauri::{AppHandle, Manager, WindowEvent};
 use tauri::menu::{Menu, MenuItem};
 use tauri::tray::{MouseButton, MouseButtonState, TrayIconBuilder, TrayIconEvent};
+use tauri::{AppHandle, Manager, WindowEvent};
 
 #[tauri::command]
 pub fn show_window(app: AppHandle) -> Result<(), String> {
