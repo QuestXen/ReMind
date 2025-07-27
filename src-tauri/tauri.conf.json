@@ -1,0 +1,54 @@
+{
+  "$schema": "../node_modules/@tauri-apps/cli/config.schema.json",
+  "productName": "ReMind",
+  "version": "1.0.0",
+  "identifier": "com.remind.dev",
+  "build": {
+    "frontendDist": "../dist",
+    "devUrl": "http://localhost:1420",
+    "beforeDevCommand": "npm run dev",
+    "beforeBuildCommand": "npm run build"
+  },
+  "app": {
+    "windows": [
+      {
+        "label": "main",
+        "title": "ReMind",
+        "width": 800,
+        "height": 900,
+        "resizable": true,
+        "fullscreen": false,
+        "visible": true,
+        "decorations": false,
+        "transparent": false
+      }
+    ],
+    "security": {
+      "csp": null
+    }
+  },
+  "bundle": {
+    "active": true,
+    "createUpdaterArtifacts": true,
+    "targets": "all",
+    "icon": [
+      "icons/32x32.png",
+      "icons/128x128.png",
+      "icons/128x128@2x.png",
+      "icons/icon.icns",
+      "icons/icon.ico"
+    ]
+  },
+  "plugins": {
+    "updater": {
+      "endpoints": [
+        "https://github.com/QuestXen/ReMind/releases/latest/download/latest.json"
+      ],
+      "dialog": false,
+      "pubkey": "dW50cnVzdGVkIGNvbW1lbnQ6IG1pbmlzaWduIHB1YmxpYyBrZXk6IENGNDZCMkY1RDlDNzZCMjkKUldRcGE4Zlo5YkpHei80VFFPc0xLQmZKMWYyRTY1b01VdkkwNlY5UXlOeW5DdW96THFzRloxWlYK",
+      "windows": {
+        "installMode": "passive"
+      }
+    }
+  }
+} 
