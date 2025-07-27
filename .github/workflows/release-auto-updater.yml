@@ -38,7 +38,7 @@ jobs:
       - name: Get pnpm store directory
         shell: bash
         run: |
-          echo "STORE_PATH=$(pnpm store path --silent)" >> $GITHUB_ENV
+          echo "STORE_PATH=$(pnpm store path)" >> $GITHUB_ENV
           
       - name: Setup pnpm cache
         uses: actions/cache@v4
@@ -72,7 +72,9 @@ jobs:
             ## 🚀 ReMind v__VERSION__
             
             ### ✨ Was ist neu?
+            - Automatische Updates via GitHub Gist
             - Verbesserte Performance und Stabilität
+            - Optimierte Build-Pipeline mit pnpm
             
             ### 📦 Installation
             Laden Sie die .msi Datei herunter und führen Sie sie aus.
