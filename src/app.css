@@ -108,22 +108,46 @@
 	}
 	body {
 		@apply bg-background text-foreground;
-		font-family: 'Montserrat', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+		font-family:
+			'Montserrat',
+			-apple-system,
+			BlinkMacSystemFont,
+			'Segoe UI',
+			Roboto,
+			sans-serif;
 		font-weight: 400;
 		letter-spacing: -0.01em;
 	}
-	
+
 	/* Montserrat Font Weight Classes */
-	.font-thin { font-weight: 100; }
-	.font-extralight { font-weight: 200; }
-	.font-light { font-weight: 300; }
-	.font-normal { font-weight: 400; }
-	.font-medium { font-weight: 500; }
-	.font-semibold { font-weight: 600; }
-	.font-bold { font-weight: 700; }
-	.font-extrabold { font-weight: 800; }
-	.font-black { font-weight: 900; }
-	
+	.font-thin {
+		font-weight: 100;
+	}
+	.font-extralight {
+		font-weight: 200;
+	}
+	.font-light {
+		font-weight: 300;
+	}
+	.font-normal {
+		font-weight: 400;
+	}
+	.font-medium {
+		font-weight: 500;
+	}
+	.font-semibold {
+		font-weight: 600;
+	}
+	.font-bold {
+		font-weight: 700;
+	}
+	.font-extrabold {
+		font-weight: 800;
+	}
+	.font-black {
+		font-weight: 900;
+	}
+
 	/* Custom Typography Classes */
 	.text-display {
 		font-family: 'Montserrat', sans-serif;
@@ -131,32 +155,56 @@
 		letter-spacing: -0.02em;
 		line-height: 1.1;
 	}
-	
+
 	.text-heading {
 		font-family: 'Montserrat', sans-serif;
 		font-weight: 700;
 		letter-spacing: -0.015em;
 		line-height: 1.2;
 	}
-	
+
 	.text-subheading {
 		font-family: 'Montserrat', sans-serif;
 		font-weight: 600;
 		letter-spacing: -0.01em;
 		line-height: 1.3;
 	}
-	
+
 	.text-body {
 		font-family: 'Montserrat', sans-serif;
 		font-weight: 400;
 		letter-spacing: -0.005em;
 		line-height: 1.5;
 	}
-	
+
 	.text-caption {
 		font-family: 'Montserrat', sans-serif;
 		font-weight: 300;
 		letter-spacing: 0;
 		line-height: 1.4;
+	}
+
+	/* Hide scrollbars */
+	html,
+	body {
+		scrollbar-width: none;
+		-ms-overflow-style: none;
+		overflow: hidden;
+	}
+
+	::-webkit-scrollbar {
+		display: none;
+	}
+
+	/* Prevent scrollbars during animations */
+	* {
+		box-sizing: border-box;
+	}
+
+	body,
+	#app {
+		overflow: hidden;
+		height: 100vh;
+		width: 100vw;
 	}
 }

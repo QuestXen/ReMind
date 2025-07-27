@@ -29,12 +29,12 @@ jobs:
         uses: actions/setup-node@v4
         with:
           node-version: '23'
-          
+
       - name: Install pnpm
         uses: pnpm/action-setup@v4
         with:
           version: 9
-          
+
       - name: Setup pnpm cache dir
         shell: bash
         run: |
@@ -42,7 +42,7 @@ jobs:
           mkdir -p $STORE_PATH
           pnpm config set store-dir $STORE_PATH
           echo "STORE_PATH=$STORE_PATH" >> $GITHUB_ENV
-          
+
       - name: Setup pnpm cache
         uses: actions/cache@v4
         with:
@@ -73,18 +73,18 @@ jobs:
           releaseName: 'ReMind v__VERSION__'
           releaseBody: |
             ## 🚀 ReMind v__VERSION__
-            
+
             ### ✨ Was ist neu?
             - Automatische Updates via GitHub Gist
             - Verbesserte Performance und Stabilität
             - Optimierte Build-Pipeline mit pnpm
-            
+
             ### 📦 Installation
             Laden Sie die .msi Datei herunter und führen Sie sie aus.
-            
+
             ### 🔄 Auto-Update
             Die App prüft automatisch auf Updates beim Start.
-            
+
             Siehe [CHANGES.md](https://github.com/QuestXen/ReMind/blob/main/CHANGES.md) für eine vollständige Liste der Änderungen.
           releaseDraft: false
           prerelease: false
@@ -98,7 +98,7 @@ jobs:
     if: startsWith(github.ref, 'refs/tags/v')
     steps:
       - uses: actions/checkout@v4
-      
+
       - name: Update Gist with latest.json
         uses: actions/github-script@v7
         env:
@@ -108,10 +108,10 @@ jobs:
           script: |
             const tag = context.ref.replace('refs/tags/', '');
             console.log('🏷️ Processing release for tag:', tag);
-            
+
             // Warte kurz damit das Release vollständig erstellt ist
             await new Promise(resolve => setTimeout(resolve, 5000));
-            
+
             try {
               // Get release info
               const release = await github.rest.repos.getReleaseByTag({
