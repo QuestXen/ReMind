@@ -244,11 +244,6 @@ jobs:
                       ['Gist URL', `[latest.json](${rawUrl})`],
                       ['Published', new Date(release.data.published_at).toLocaleString()]
                     ])
-                    .write();
-                } catch (error) {
-                  core.error(`❌ Gist update failed: ${error.message}`);
-                  core.setFailed(error.message);
-                }
                     .addRaw(`
                       ### 🔄 Auto-Update Endpoint
                       \`\`\`
@@ -259,7 +254,6 @@ jobs:
                       Auto-updater is ready! Users will receive this update automatically.
                     `)
                     .write();
-                  
                   break;
                 } catch (error) {
                   verifyRetries--;
