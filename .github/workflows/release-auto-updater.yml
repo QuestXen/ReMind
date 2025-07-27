@@ -35,10 +35,13 @@ jobs:
         with:
           version: 9
           
-      - name: Get pnpm store directory
+      - name: Setup pnpm cache dir
         shell: bash
         run: |
-          echo "STORE_PATH=$(pnpm store path)" >> $GITHUB_ENV
+          STORE_PATH="${{ runner.temp }}/pnpm-store"
+          mkdir -p $STORE_PATH
+          pnpm config set store-dir $STORE_PATH
+          echo "STORE_PATH=$STORE_PATH" >> $GITHUB_ENV
           
       - name: Setup pnpm cache
         uses: actions/cache@v4
