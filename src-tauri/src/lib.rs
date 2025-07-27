@@ -5,6 +5,7 @@ use commands::app_data::{
 };
 use commands::default::{read, write};
 use commands::notifications::{request_permission, send_notification};
+use commands::system_info::get_system_info;
 use commands::tray::{handle_window_event, hide_window, quit_app, setup_system_tray, show_window};
 use tauri::Manager;
 
@@ -56,6 +57,7 @@ pub fn run() {
             save_settings,
             update_autostart_setting,
             get_autostart_setting,
+            get_system_info,
             show_window,
             hide_window,
             quit_app

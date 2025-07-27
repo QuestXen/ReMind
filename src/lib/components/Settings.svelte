@@ -7,11 +7,19 @@
 	import { invoke } from '@tauri-apps/api/core';
 	import TitleBar from './TitleBar.svelte';
 
+	interface SystemInfo {
+		app_version: string;
+		os_name: string;
+		os_version: string;
+		arch: string;
+	}
+
 	const dispatch = createEventDispatcher<{ close: void }>();
 
 	let autostartEnabled = $state(false);
 	let loading = $state(true);
 	let updating = $state(false);
+	let systemInfo = $state<SystemInfo | null>(null);
 
 	function handleClose() {
 		dispatch('close');
@@ -96,8 +104,19 @@
 		}
 	}
 
+	// Funktion zum Laden der Systeminformationen
+	async function loadSystemInfo() {
+		try {
+			const info = await invoke<SystemInfo>('get_system_info');
+			systemInfo = info;
+		} catch (error) {
+			console.error('[Frontend] Failed to load system info:', error);
+		}
+	}
+
 	onMount(() => {
 		loadAutostartSetting();
+		loadSystemInfo();
 	});
 </script>
 
@@ -105,7 +124,7 @@
 	<TitleBar title="Einstellungen" icon="S" />
 
 	<!-- Settings Content -->
-	<div class="bg-background animate-slide-in-right flex-1 overflow-y-auto">
+	<div class="bg-background animate-slide-in-right flex-1 overflow-y-auto relative">
 		<!-- Zurück Button -->
 		<div class="p-4">
 			<Button
@@ -146,9 +165,24 @@
 						</div>
 					</div>
 				</div>
+
 			</div>
 		</div>
 	</div>
+
+	<!-- Footer mit Systeminformationen -->
+	{#if systemInfo}
+		<div class="bg-background border-t border-border px-6 py-3">
+			<div class="text-center space-y-1">
+				<p class="text-muted-foreground text-xs">
+					ReMind v{systemInfo.app_version}
+				</p>
+				<p class="text-muted-foreground text-xs">
+					{systemInfo.os_version} {systemInfo.arch}
+				</p>
+			</div>
+		</div>
+	{/if}
 </div>
 
 <style>

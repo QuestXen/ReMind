@@ -1,8 +1,7 @@
 <script lang="ts">
 	import { Button } from '$lib/components/ui/button/index';
-import { Card, Header, Title, Content } from '$lib/components/ui/card/index';
-import { Input } from '$lib/components/ui/input/index';
-// Import invoke directly
+	import { Card, Header, Title, Content } from '$lib/components/ui/card/index';
+	import { Input } from '$lib/components/ui/input/index';
 	import { invoke } from '@tauri-apps/api/core';
 	import { Plus, Bell, Trash2, Calendar, Clock, Edit, Settings } from '@lucide/svelte';
 	import { onMount } from 'svelte';
