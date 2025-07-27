@@ -1,4 +1,4 @@
-name: 'Release with Auto-Updater'
+name: 'Release with Gist Auto-Updater'
 
 on:
   push:
@@ -30,11 +30,34 @@ jobs:
         with:
           node-version: '23'
           
+      - name: Install pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 9
+          
+      - name: Get pnpm store directory
+        shell: bash
+        run: |
+          echo "STORE_PATH=$(pnpm store path --silent)" >> $GITHUB_ENV
+          
+      - name: Setup pnpm cache
+        uses: actions/cache@v4
+        with:
+          path: ${{ env.STORE_PATH }}
+          key: ${{ runner.os }}-pnpm-store-${{ hashFiles('**/pnpm-lock.yaml') }}
+          restore-keys: |
+            ${{ runner.os }}-pnpm-store-
+
       - name: Install frontend dependencies
-        run: npm ci
+        run: pnpm install --frozen-lockfile
 
       - name: Install Rust stable
         uses: dtolnay/rust-toolchain@stable
+
+      - name: Rust cache
+        uses: swatinem/rust-cache@v2
+        with:
+          workspaces: './src-tauri -> target'
 
       - name: Build Tauri with Updater
         uses: tauri-apps/tauri-action@v0
@@ -46,123 +69,207 @@ jobs:
           tagName: v__VERSION__
           releaseName: 'ReMind v__VERSION__'
           releaseBody: |
-            ## ReMind v__VERSION__
+            ## 🚀 ReMind v__VERSION__
             
-            ### Was ist neu?
-            - Automatische Updates sind jetzt verfügbar
+            ### ✨ Was ist neu?
             - Verbesserte Performance und Stabilität
             
-            ### Installation
+            ### 📦 Installation
             Laden Sie die .msi Datei herunter und führen Sie sie aus.
             
-            ### Auto-Update
+            ### 🔄 Auto-Update
             Die App prüft automatisch auf Updates beim Start.
             
             Siehe [CHANGES.md](https://github.com/QuestXen/ReMind/blob/main/CHANGES.md) für eine vollständige Liste der Änderungen.
           releaseDraft: false
           prerelease: false
           args: ${{ matrix.args }}
-          includeUpdaterJson: true
 
-  create-updater-json:
+  update-gist:
     needs: publish-tauri
     runs-on: ubuntu-latest
     permissions:
-      contents: write
-    # Nur bei Tag-Push ausführen
+      contents: read
     if: startsWith(github.ref, 'refs/tags/v')
     steps:
       - uses: actions/checkout@v4
       
-      - name: Get release info
-        id: get_release
+      - name: Update Gist with latest.json
         uses: actions/github-script@v7
+        env:
+          GIST_TOKEN: ${{ secrets.GIST_TOKEN }}
+          GIST_ID: ${{ secrets.GIST_ID }}
         with:
           script: |
             const tag = context.ref.replace('refs/tags/', '');
-            console.log('Looking for release with tag:', tag);
+            console.log('🏷️ Processing release for tag:', tag);
             
-            const release = await github.rest.repos.getReleaseByTag({
-              owner: context.repo.owner,
-              repo: context.repo.repo,
-              tag: tag
-            });
+            // Warte kurz damit das Release vollständig erstellt ist
+            await new Promise(resolve => setTimeout(resolve, 5000));
             
-            // Find Windows installer asset
-            const windowsAsset = release.data.assets.find(asset => 
-              asset.name.endsWith('.msi') || asset.name.endsWith('.exe')
-            );
-            
-            // Find signature file
-            const sigAsset = release.data.assets.find(asset => 
-              asset.name.endsWith('.msi.sig') || asset.name.endsWith('.exe.sig')
-            );
-            
-            if (!windowsAsset || !sigAsset) {
-              throw new Error('Windows installer or signature file not found');
-            }
-            
-            return {
-              version: tag,
-              notes: release.data.body || 'Update verfügbar',
-              pub_date: release.data.published_at,
-              url: windowsAsset.browser_download_url,
-              signature: sigAsset.browser_download_url
-            };
-
-      - name: Download signature file
-        run: |
-          curl -L -o signature.sig "${{ fromJson(steps.get_release.outputs.result).signature }}"
-          
-      - name: Create latest.json
-        run: |
-          cat > latest.json << EOF
-          {
-            "version": "${{ fromJson(steps.get_release.outputs.result).version }}",
-            "notes": "${{ fromJson(steps.get_release.outputs.result).notes }}",
-            "pub_date": "${{ fromJson(steps.get_release.outputs.result).pub_date }}",
-            "platforms": {
-              "windows-x86_64": {
-                "signature": "$(cat signature.sig)",
-                "url": "${{ fromJson(steps.get_release.outputs.result).url }}"
+            try {
+              // Get release info
+              const release = await github.rest.repos.getReleaseByTag({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                tag: tag
+              });
+              
+              console.log('📦 Found release:', release.data.name);
+              console.log('📁 Assets found:', release.data.assets.map(a => a.name).join(', '));
+              
+              // Find Windows installer and signature
+              const windowsAsset = release.data.assets.find(asset => 
+                asset.name.endsWith('.msi')
+              );
+              
+              const sigAsset = release.data.assets.find(asset => 
+                asset.name.endsWith('.msi.sig')
+              );
+              
+              if (!windowsAsset) {
+                throw new Error(`❌ Windows MSI installer not found. Available assets: ${release.data.assets.map(a => a.name).join(', ')}`);
               }
-            }
-          }
-          EOF
-
-      - name: Upload latest.json to release
-        uses: actions/github-script@v7
-        with:
-          script: |
-            const fs = require('fs');
-            const tag = context.ref.replace('refs/tags/', '');
-            
-            // Get release
-            const release = await github.rest.repos.getReleaseByTag({
-              owner: context.repo.owner,
-              repo: context.repo.repo,
-              tag: tag
-            });
-            
-            // Upload latest.json
-            const latestJson = fs.readFileSync('latest.json');
-            await github.rest.repos.uploadReleaseAsset({
-              owner: context.repo.owner,
-              repo: context.repo.repo,
-              release_id: release.data.id,
-              name: 'latest.json',
-              data: latestJson,
-              headers: {
-                'content-type': 'application/json'
+              
+              if (!sigAsset) {
+                throw new Error(`❌ Signature file not found. Available assets: ${release.data.assets.map(a => a.name).join(', ')}`);
               }
-            });
-            
-            console.log('latest.json uploaded successfully');
-
-      - name: Verify updater endpoint
-        run: |
-          echo "Auto-updater endpoint:"
-          echo "https://github.com/QuestXen/ReMind/releases/latest/download/latest.json"
-          echo ""
-          echo "latest.json content:"
-          cat latest.json
+              
+              console.log('🪟 Windows asset:', windowsAsset.name);
+              console.log('🔐 Signature asset:', sigAsset.name);
+              
+              // Download signature content mit Retry-Logic
+              let signature;
+              let retries = 3;
+              
+              while (retries > 0) {
+                try {
+                  console.log(`📥 Downloading signature (attempt ${4 - retries}/3)...`);
+                  const sigResponse = await fetch(sigAsset.browser_download_url);
+                  
+                  if (!sigResponse.ok) {
+                    throw new Error(`HTTP ${sigResponse.status}: ${sigResponse.statusText}`);
+                  }
+                  
+                  signature = await sigResponse.text();
+                  
+                  if (signature.trim().length === 0) {
+                    throw new Error('Empty signature file');
+                  }
+                  
+                  console.log('✅ Downloaded signature, length:', signature.length);
+                  break;
+                } catch (error) {
+                  retries--;
+                  console.log(`⚠️ Signature download failed:`, error.message);
+                  if (retries > 0) {
+                    console.log(`🔄 Retrying in 3 seconds...`);
+                    await new Promise(resolve => setTimeout(resolve, 3000));
+                  } else {
+                    throw new Error(`Failed to download signature after 3 attempts: ${error.message}`);
+                  }
+                }
+              }
+              
+              // Create latest.json content
+              const latestJson = {
+                version: tag,
+                notes: `🚀 ReMind ${tag} ist verfügbar! Neue Features und Verbesserungen warten auf Sie.`,
+                pub_date: release.data.published_at,
+                platforms: {
+                  "windows-x86_64": {
+                    signature: signature.trim(),
+                    url: windowsAsset.browser_download_url
+                  }
+                }
+              };
+              
+              console.log('📝 Created latest.json structure');
+              console.log('🔗 Download URL:', windowsAsset.browser_download_url);
+              
+              // Update Gist using separate token
+              const { Octokit } = require('@octokit/rest');
+              const gistOctokit = new Octokit({
+                auth: process.env.GIST_TOKEN
+              });
+              
+              console.log('🔄 Updating Gist...');
+              
+              const gistResponse = await gistOctokit.rest.gists.update({
+                gist_id: process.env.GIST_ID,
+                files: {
+                  'latest.json': {
+                    content: JSON.stringify(latestJson, null, 2)
+                  }
+                }
+              });
+              
+              console.log('✅ Gist updated successfully!');
+              console.log('🌐 Gist URL:', gistResponse.data.html_url);
+              
+              const rawUrl = `https://gist.githubusercontent.com/${gistResponse.data.owner.login}/${process.env.GIST_ID}/raw/latest.json`;
+              console.log('📄 Raw URL:', rawUrl);
+              
+              // Verify the update mit Retry
+              console.log('🔍 Verifying update...');
+              await new Promise(resolve => setTimeout(resolve, 2000)); // Wait for Gist to propagate
+              
+              let verifyRetries = 3;
+              while (verifyRetries > 0) {
+                try {
+                  const verifyResponse = await fetch(rawUrl);
+                  if (!verifyResponse.ok) {
+                    throw new Error(`HTTP ${verifyResponse.status}`);
+                  }
+                  
+                  const verifyData = await verifyResponse.json();
+                  
+                  if (verifyData.version !== tag) {
+                    throw new Error(`Version mismatch: expected ${tag}, got ${verifyData.version}`);
+                  }
+                  
+                  console.log('✅ Verification successful!');
+                  console.log('📦 Version in Gist:', verifyData.version);
+                  console.log('🕐 Published:', verifyData.pub_date);
+                  
+                  // Summary für GitHub
+                  core.summary
+                    .addHeading('🚀 Auto-Updater Successfully Updated')
+                    .addTable([
+                      [{data: 'Property', header: true}, {data: 'Value', header: true}],
+                      ['Version', tag],
+                      ['Platform', 'Windows x86_64'],
+                      ['Installer', windowsAsset.name],
+                      ['Size', `${Math.round(windowsAsset.size / 1024 / 1024 * 100) / 100} MB`],
+                      ['Gist URL', `[latest.json](${rawUrl})`],
+                      ['Published', new Date(release.data.published_at).toLocaleString()]
+                    ])
+                    .addRaw(`
+                      ### 🔄 Auto-Update Endpoint
+                      \`\`\`
+                      ${rawUrl}
+                      \`\`\`
+                      
+                      ### ✅ Status
+                      Auto-updater is ready! Users will receive this update automatically.
+                    `)
+                    .write();
+                  
+                  break;
+                } catch (error) {
+                  verifyRetries--;
+                  console.log(`⚠️ Verification failed:`, error.message);
+                  if (verifyRetries > 0) {
+                    console.log(`🔄 Retrying verification in 3 seconds...`);
+                    await new Promise(resolve => setTimeout(resolve, 3000));
+                  } else {
+                    console.log('⚠️ Verification failed, but Gist was updated');
+                  }
+                }
+              }
+              
+            } catch (error) {
+              console.error('❌ Error updating Gist:', error);
+              core.setFailed(`Failed to update auto-updater: ${error.message}`);
+              throw error;
+            }
