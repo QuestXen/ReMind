@@ -193,7 +193,6 @@ jobs:
               console.log('🔗 Download URL:', windowsAsset.browser_download_url);
               
               // Update Gist using separate token
-              const { Octokit } = require('@octokit/rest');
               const gistOctokit = new Octokit({
                 auth: process.env.GIST_TOKEN
               });

@@ -3,6 +3,22 @@
 version = 3
 
 [[package]]
+name = "ReMind"
+version = "1.0.0"
+dependencies = [
+ "log",
+ "serde",
+ "serde_json",
+ "tauri",
+ "tauri-build",
+ "tauri-plugin-log",
+ "tauri-plugin-notification",
+ "tauri-plugin-single-instance",
+ "tauri-plugin-window-state",
+ "thiserror 2.0.12",
+]
+
+[[package]]
 name = "addr2line"
 version = "0.24.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -2571,22 +2587,6 @@ dependencies = [
  "redox_syscall",
  "smallvec",
  "windows-targets 0.52.6",
-]
-
-[[package]]
-name = "pc-notify"
-version = "1.0.0"
-dependencies = [
- "log",
- "serde",
- "serde_json",
- "tauri",
- "tauri-build",
- "tauri-plugin-log",
- "tauri-plugin-notification",
- "tauri-plugin-single-instance",
- "tauri-plugin-window-state",
- "thiserror 2.0.12",
 ]
 
 [[package]]
