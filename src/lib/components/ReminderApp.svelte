@@ -223,12 +223,54 @@
 	async function deleteReminder(id: string) {
 		clearReminderTimer(id);
 		
-		try {
-			await invoke('delete_reminder', { reminderId: id });
-			deleteReminderFromStore(id);
-			console.log(`Deleted reminder with ID: ${id}`);
-		} catch (error) {
-			console.error('Failed to delete reminder:', error);
+		// Add delete animation class
+		const reminderElement = document.getElementById(`reminder-${id}`);
+		if (reminderElement) {
+			// Choose random animation style
+			const animationStyles = ['animate-delete-scale-rotate', 'animate-delete-slide-out'];
+			const randomAnimation = animationStyles[Math.floor(Math.random() * animationStyles.length)];
+			
+			reminderElement.classList.add(randomAnimation);
+			
+			// Add smooth move-up animation to subsequent elements
+			const allReminders = document.querySelectorAll('[id^="reminder-"]');
+			let foundTarget = false;
+			allReminders.forEach((element) => {
+				if (foundTarget && element !== reminderElement) {
+					element.classList.add('animate-smooth-move-up');
+					// Remove animation class after animation completes
+					setTimeout(() => {
+						element.classList.remove('animate-smooth-move-up');
+					}, 600);
+				}
+				if (element === reminderElement) {
+					foundTarget = true;
+				}
+			});
+			
+			// Wait for animation to complete before actually deleting
+			setTimeout(async () => {
+				try {
+					await invoke('delete_reminder', { reminderId: id });
+					deleteReminderFromStore(id);
+					console.log(`Deleted reminder with ID: ${id}`);
+				} catch (error) {
+					console.error('Failed to delete reminder:', error);
+					// Remove animation class if deletion failed
+					if (reminderElement) {
+						reminderElement.classList.remove(randomAnimation);
+					}
+				}
+			}, 800); // Wait for animation duration
+		} else {
+			// Fallback if element not found
+			try {
+				await invoke('delete_reminder', { reminderId: id });
+				deleteReminderFromStore(id);
+				console.log(`Deleted reminder with ID: ${id}`);
+			} catch (error) {
+				console.error('Failed to delete reminder:', error);
+			}
 		}
 	}
 
@@ -589,6 +631,98 @@ onDestroy(() => {
 		}
 	}
 
+	@keyframes delete-scale-rotate {
+		0% {
+			opacity: 1;
+			transform: scale(1) rotate(0deg);
+			height: auto;
+			margin-bottom: 1.5rem;
+		}
+		25% {
+			opacity: 0.8;
+			transform: scale(1.08) rotate(3deg);
+			height: auto;
+			margin-bottom: 1.5rem;
+		}
+		50% {
+			opacity: 0.5;
+			transform: scale(0.92) rotate(-2deg);
+			height: auto;
+			margin-bottom: 1.2rem;
+		}
+		75% {
+			opacity: 0.2;
+			transform: scale(0.7) rotate(1deg);
+			height: 50%;
+			margin-bottom: 0.8rem;
+		}
+		100% {
+			opacity: 0;
+			transform: scale(0.4) rotate(-3deg);
+			height: 0;
+			margin-bottom: 0;
+			padding-top: 0;
+			padding-bottom: 0;
+			overflow: hidden;
+		}
+	}
+
+	@keyframes delete-slide-out {
+		0% {
+			opacity: 1;
+			transform: translateX(0) scale(1) rotateY(0deg);
+			height: auto;
+			margin-bottom: 1.5rem;
+			filter: blur(0px);
+		}
+		20% {
+			opacity: 0.9;
+			transform: translateX(-5px) scale(1.02) rotateY(-2deg);
+			height: auto;
+			margin-bottom: 1.5rem;
+			filter: blur(0px);
+		}
+		40% {
+			opacity: 0.6;
+			transform: translateX(-20px) scale(0.95) rotateY(-5deg);
+			height: auto;
+			margin-bottom: 1.2rem;
+			filter: blur(1px);
+		}
+		70% {
+			opacity: 0.3;
+			transform: translateX(-60px) scale(0.8) rotateY(-10deg);
+			height: 60%;
+			margin-bottom: 0.8rem;
+			filter: blur(2px);
+		}
+		100% {
+			opacity: 0;
+			transform: translateX(-120px) scale(0.6) rotateY(-15deg);
+			height: 0;
+			margin-bottom: 0;
+			padding-top: 0;
+			padding-bottom: 0;
+			filter: blur(3px);
+			overflow: hidden;
+		}
+	}
+
+	@keyframes smooth-move-up {
+		0% {
+			transform: translateY(0);
+			opacity: 1;
+		}
+		50% {
+			transform: translateY(-10px);
+			opacity: 0.8;
+		}
+		100% {
+			transform: translateY(-24px);
+			opacity: 1;
+		}
+	}
+
 	.animate-fade-in {
 		animation: fade-in 0.6s ease-out;
 	}
@@ -607,6 +741,18 @@ onDestroy(() => {
 
 	.animate-slide-in-left {
 		animation: slide-in-left 0.3s ease-out;
+	}
+
+	.animate-delete-scale-rotate {
+		animation: delete-scale-rotate 0.8s cubic-bezier(0.25, 0.46, 0.45, 0.94) forwards;
+	}
+
+	.animate-delete-slide-out {
+		animation: delete-slide-out 0.7s cubic-bezier(0.25, 0.46, 0.45, 0.94) forwards;
+	}
+
+	.animate-smooth-move-up {
+		animation: smooth-move-up 0.6s cubic-bezier(0.25, 0.46, 0.45, 0.94) forwards;
 	}
 
 	* {

@@ -48,6 +48,7 @@
     "@types/node": "^24.1.0",
     "clsx": "^2.1.1",
     "lucide-svelte": "^0.526.0",
+    "svelte-awesome-color-picker": "^4.0.2",
     "tailwind-merge": "^3.3.1",
     "tailwindcss": "^4.1.11"
   }
