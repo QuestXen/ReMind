@@ -3,7 +3,7 @@ import type { Writable } from 'svelte/store';
 
 // Types
 export type ReminderInterval = 'minutes' | 'hours' | 'days' | 'weeks' | 'months' | 'specific';
-export type ReminderColor = 'blue' | 'green' | 'purple' | 'red' | 'orange' | 'pink';
+export type ReminderColor = 'blue' | 'green' | 'purple' | 'red' | 'orange' | 'pink' | string; // Allow custom hex colors
 
 export interface Reminder {
 	id: string;

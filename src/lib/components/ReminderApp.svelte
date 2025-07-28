@@ -8,8 +8,10 @@
 	import * as Popover from '$lib/components/ui/popover/index';
 	import { getLocalTimeZone, today, parseDate } from '@internationalized/date';
 	import { invoke } from '@tauri-apps/api/core';
-	import { Plus, Bell, Trash2, Calendar as CalendarIcon, Clock, Edit, Settings } from '@lucide/svelte';
+	import { Plus, Bell, Trash2, Calendar as CalendarIcon, Clock, Edit, Settings, Palette } from '@lucide/svelte';
 	import { onMount, onDestroy } from 'svelte';
+	
+	import ColorPicker from 'svelte-awesome-color-picker';
 	import SettingsComponent from './Settings.svelte';
 	import TitleBar from './TitleBar.svelte';
 	import { reminders, addReminder, updateReminder as updateReminderStore, deleteReminderFromStore } from '$lib/stores';
@@ -27,6 +29,11 @@
 		specificTime: '12:00',
 		color: 'blue' as ReminderColor
 	});
+
+	let showColorPicker = $state(false);
+	let showEditColorPicker = $state(false);
+	let customColor = $state('#7f5af0'); 
+	let editCustomColor = $state('#7f5af0');
 
 	let reminderTimers = new Map<string, {
 		timerId: NodeJS.Timeout;
@@ -47,6 +54,20 @@
 		pink: 'bg-pink-500 border-pink-200 text-pink-50'
 	};
 
+	function getColorStyle(color: string): string {
+		if (color in colorClasses) {
+			return colorClasses[color as keyof typeof colorClasses];
+		}
+		return '';
+	}
+
+	function getCustomColorStyle(color: string): string {
+		if (color.startsWith('#')) {
+			return `background-color: ${color}; border-color: ${color}40; color: white;`;
+		}
+		return '';
+	}
+
 	const intervalOptions = [
 		{ value: 'minutes', label: 'Minuten' },
 		{ value: 'hours', label: 'Stunden' },
@@ -56,7 +77,6 @@
 		{ value: 'specific', label: 'Bestimmtes Datum' }
 	];
 
-	// Time options for dropdown - generate all times with 15-minute intervals
 	const timeOptions = (() => {
 		const options = [];
 		for (let hour = 0; hour < 24; hour++) {
@@ -77,15 +97,12 @@
 		specific: 'Bestimmtes Datum'
 	};
 
-	// Calendar state
 	let newReminderCalendarValue = $state(today(getLocalTimeZone()));
 	let editReminderCalendarValue = $state(today(getLocalTimeZone()));
 	
-	// Popover state
 	let newReminderPopoverOpen = $state(false);
 	let editReminderPopoverOpen = $state(false);
 
-	// Select trigger content
 	const newReminderTriggerContent = $derived(
 		intervalOptions.find((option) => option.value === newReminder.interval)?.label ?? 'Intervall wählen'
 	);
@@ -117,9 +134,13 @@
 			setTimeout(() => {
 				const newReminderElement = document.getElementById(`reminder-${reminder.id}`);
 				if (newReminderElement) {
-					newReminderElement.scrollIntoView({ behavior: 'smooth', block: 'center' });
+					newReminderElement.scrollIntoView({ 
+						behavior: 'smooth', 
+						block: 'center',
+						inline: 'nearest'
+					});
 				}
-			}, 100);
+			}, 500);
 			
 			startReminderTimer(reminder);
 		} catch (error) {
@@ -138,9 +159,9 @@
 		};
 		newReminderCalendarValue = today(getLocalTimeZone());
 		newReminderPopoverOpen = false;
+		showColorPicker = false;
+		customColor = '#3b82f6';
 	}
-
-	// Reactive statements for calendar changes
 	$effect(() => {
 		if (newReminderCalendarValue && newReminder.interval === 'specific') {
 			const dateStr = newReminderCalendarValue.toString();
@@ -159,13 +180,12 @@
 	function startEditReminder(reminder: Reminder) {
 		editingReminder = { ...reminder };
 		
-		// Set calendar value and time if editing a specific date reminder
 		if (reminder.interval === 'specific' && reminder.specificDate) {
 			try {
 				const [datePart, timePart] = reminder.specificDate.split('T');
 				editReminderCalendarValue = parseDate(datePart);
 				if (timePart && editingReminder) {
-					editingReminder.specificTime = timePart.substring(0, 5); // Extract HH:MM
+					editingReminder.specificTime = timePart.substring(0, 5);
 				}
 			} catch {
 				editReminderCalendarValue = today(getLocalTimeZone());
@@ -183,6 +203,18 @@
 		showEditForm = true;
 		showCreateForm = false;
 		editReminderPopoverOpen = false;
+		
+		setTimeout(() => {
+			const formElement = document.getElementById('create-form');
+			if (formElement) {
+				const contentScroll = document.getElementById('content-scroll');
+				if (contentScroll) {
+					contentScroll.style.scrollBehavior = 'smooth';
+					const elementTop = formElement.offsetTop;
+					contentScroll.scrollTop = Math.max(0, elementTop - 20);
+				}
+			}
+		}, 200);
 	}
 
 	async function updateReminder() {
@@ -195,9 +227,25 @@
 			updateReminderStore(editingReminder);
 			startReminderTimer(editingReminder);
 			
+			const updatedReminderId = editingReminder.id;
 			const updatedReminderName = editingReminder.name;
 			showEditForm = false;
 			editingReminder = null;
+			setTimeout(() => {
+				const updatedReminderElement = document.getElementById(`reminder-${updatedReminderId}`);
+				if (updatedReminderElement) {
+					const contentScroll = document.getElementById('content-scroll');
+					if (contentScroll) {
+						contentScroll.style.scrollBehavior = 'smooth';
+						const elementTop = updatedReminderElement.offsetTop;
+						const elementHeight = updatedReminderElement.offsetHeight;
+						const containerHeight = contentScroll.clientHeight;
+						const scrollTop = elementTop - (containerHeight / 2) + (elementHeight / 2);
+						contentScroll.scrollTop = Math.max(0, scrollTop);
+					}
+				}
+			}, 400);
+			
 			console.log(`Updated reminder: ${updatedReminderName}`);
 		} catch (error) {
 			console.error('Failed to update reminder:', error);
@@ -210,6 +258,8 @@
 	function cancelEdit() {
 		showEditForm = false;
 		editingReminder = null;
+		showEditColorPicker = false;
+		editCustomColor = '#3b82f6';
 	}
 
 	function openSettings() {
@@ -223,32 +273,26 @@
 	async function deleteReminder(id: string) {
 		clearReminderTimer(id);
 		
-		// Add delete animation class
 		const reminderElement = document.getElementById(`reminder-${id}`);
 		if (reminderElement) {
-			// Choose random animation style
 			const animationStyles = ['animate-delete-scale-rotate', 'animate-delete-slide-out'];
 			const randomAnimation = animationStyles[Math.floor(Math.random() * animationStyles.length)];
 			
 			reminderElement.classList.add(randomAnimation);
-			
-			// Add smooth move-up animation to subsequent elements
 			const allReminders = document.querySelectorAll('[id^="reminder-"]');
 			let foundTarget = false;
 			allReminders.forEach((element) => {
 				if (foundTarget && element !== reminderElement) {
 					element.classList.add('animate-smooth-move-up');
-					// Remove animation class after animation completes
-					setTimeout(() => {
-						element.classList.remove('animate-smooth-move-up');
-					}, 600);
+				setTimeout(() => {
+					element.classList.remove('animate-smooth-move-up');
+				}, 800);
 				}
 				if (element === reminderElement) {
 					foundTarget = true;
 				}
 			});
 			
-			// Wait for animation to complete before actually deleting
 			setTimeout(async () => {
 				try {
 					await invoke('delete_reminder', { reminderId: id });
@@ -256,14 +300,12 @@
 					console.log(`Deleted reminder with ID: ${id}`);
 				} catch (error) {
 					console.error('Failed to delete reminder:', error);
-					// Remove animation class if deletion failed
 					if (reminderElement) {
 						reminderElement.classList.remove(randomAnimation);
 					}
 				}
-			}, 800); // Wait for animation duration
+			}, 800); 
 		} else {
-			// Fallback if element not found
 			try {
 				await invoke('delete_reminder', { reminderId: id });
 				deleteReminderFromStore(id);
@@ -296,7 +338,6 @@
 
 
 	function startReminderTimer(reminder: Reminder) {
-		// Only start timer for active reminders
 		if (!reminder.active) {
 			console.log(`Skipping timer for inactive reminder: ${reminder.name}`);
 			return;
@@ -477,10 +518,8 @@
 }
 
 	function getTimeUntilNextReminder(reminder: Reminder): string {
-			// Use timeUpdateTrigger to make this reactive
 			timeUpdateTrigger;
 			
-			// Check if reminder is active first
 			if (!reminder.active) {
 				return '';
 			}
@@ -526,13 +565,10 @@
 onMount(() => {
 		let isInitialLoad = true;
 		
-		// Start timers for existing reminders from store
 		const unsubscribe = reminders.subscribe(currentReminders => {
 			if (isInitialLoad) {
-				// Only clear all timers on initial load
 				clearAllTimers();
 				
-				// Start timers for all current reminders
 				currentReminders.forEach(reminder => {
 					startReminderTimer(reminder);
 				});
@@ -540,10 +576,8 @@ onMount(() => {
 				console.log(`Initialized ${currentReminders.length} reminders with timers`);
 				isInitialLoad = false;
 			}
-			// After initial load, timer management is handled by individual functions
 		});
 		
-		// Setup timer cleanup interval
 		timerCleanupInterval = setInterval(() => {
 			const now = new Date();
 			reminderTimers.forEach((timerInfo, id) => {
@@ -553,10 +587,9 @@ onMount(() => {
 			});
 		}, 5 * 60 * 1000);
 		
-		// Setup time update interval for countdown display
 		timeUpdateInterval = setInterval(() => {
-			timeUpdateTrigger++; // Trigger reactivity
-		}, 1000); // Update every second for accurate countdown
+			timeUpdateTrigger++;
+		}, 1000); 
 		
 		return () => {
 			unsubscribe();
@@ -588,48 +621,36 @@ onDestroy(() => {
 	}
 
 	@keyframes slide-up {
-		from {
+		0% {
 			opacity: 0;
-			transform: translateY(20px);
+			transform: translateY(40px) scale(0.95);
 		}
-		to {
+		50% {
+			opacity: 0.7;
+			transform: translateY(15px) scale(0.98);
+		}
+		100% {
 			opacity: 1;
-			transform: translateY(0);
+			transform: translateY(0) scale(1);
 		}
 	}
 
-	@keyframes slide-out-left {
-		from {
+	@keyframes slide-out {
+		0% {
 			opacity: 1;
-			transform: translateX(0);
+			transform: translateY(0) scale(1);
 		}
-		to {
+		30% {
+			opacity: 0.8;
+			transform: translateY(-5px) scale(0.98);
+		}
+		100% {
 			opacity: 0;
-			transform: translateX(-20px);
+			transform: translateY(-30px) scale(0.9);
 		}
 	}
 
-	@keyframes slide-in-left {
-		from {
-			opacity: 0;
-			transform: translateX(20px);
-		}
-		to {
-			opacity: 1;
-			transform: translateX(0);
-		}
-	}
 
-	@keyframes slide-up-staggered {
-		from {
-			opacity: 0;
-			transform: translateY(30px);
-		}
-		to {
-			opacity: 1;
-			transform: translateY(0);
-		}
-	}
 
 	@keyframes delete-scale-rotate {
 		0% {
@@ -713,9 +734,13 @@ onDestroy(() => {
 			transform: translateY(0);
 			opacity: 1;
 		}
-		50% {
-			transform: translateY(-10px);
-			opacity: 0.8;
+		20% {
+			transform: translateY(-5px);
+			opacity: 0.95;
+		}
+		60% {
+			transform: translateY(-15px);
+			opacity: 0.9;
 		}
 		100% {
 			transform: translateY(-24px);
@@ -723,24 +748,51 @@ onDestroy(() => {
 		}
 	}
 
-	.animate-fade-in {
-		animation: fade-in 0.6s ease-out;
+
+
+	.form-container {
+		transition: all 0.6s cubic-bezier(0.16, 1, 0.3, 1);
+		transform-origin: center;
+		max-height: 1000px;
+		opacity: 1;
+		overflow: hidden;
+		animation: form-slide-in 0.8s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+	}
+
+	.form-container.closing {
+		max-height: 0;
+		opacity: 0;
+		transform: translateY(-20px) scale(0.95);
+		margin-bottom: 0;
+		animation: none;
+	}
+
+	@keyframes form-slide-in {
+		0% {
+			opacity: 0;
+			transform: translateY(30px) scale(0.95);
+			max-height: 0;
+		}
+		30% {
+			opacity: 0.3;
+			transform: translateY(15px) scale(0.98);
+			max-height: 300px;
+		}
+		100% {
+			opacity: 1;
+			transform: translateY(0) scale(1);
+			max-height: 1000px;
+		}
 	}
 
 	.animate-slide-up {
-		animation: slide-up 0.4s ease-out;
+		animation: slide-up 0.8s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+		transform-origin: center bottom;
 	}
 
-	.animate-slide-up-staggered {
-		animation: slide-up-staggered 0.5s ease-out;
-	}
-
-	.animate-slide-out-left {
-		animation: slide-out-left 0.3s ease-out;
-	}
-
-	.animate-slide-in-left {
-		animation: slide-in-left 0.3s ease-out;
+	.animate-slide-out {
+		animation: slide-out 0.5s cubic-bezier(0.4, 0, 0.6, 1) forwards;
+		transform-origin: center top;
 	}
 
 	.animate-delete-scale-rotate {
@@ -752,7 +804,7 @@ onDestroy(() => {
 	}
 
 	.animate-smooth-move-up {
-		animation: smooth-move-up 0.6s cubic-bezier(0.25, 0.46, 0.45, 0.94) forwards;
+		animation: smooth-move-up 0.8s cubic-bezier(0.16, 1, 0.3, 1) forwards;
 	}
 
 	* {
@@ -897,14 +949,19 @@ onDestroy(() => {
 		<div class="flex justify-center mb-12">
 			<Button 
 				onclick={() => {
-				showCreateForm = true;
-				setTimeout(() => {
-					const formElement = document.getElementById('create-form');
-					if (formElement) {
-						formElement.scrollIntoView({ behavior: 'smooth', block: 'start' });
+			showCreateForm = true;
+			setTimeout(() => {
+				const createFormElement = document.getElementById('create-form');
+				if (createFormElement) {
+					const contentScroll = document.getElementById('content-scroll');
+					if (contentScroll) {
+						contentScroll.style.scrollBehavior = 'smooth';
+						const elementTop = createFormElement.offsetTop;
+						contentScroll.scrollTop = Math.max(0, elementTop - 20);
 					}
-				}, 100);
-			}}
+				}
+			}, 200);
+		}}
 				class="bg-primary hover:bg-primary/90 text-primary-foreground px-8 py-4 rounded-2xl shadow-lg transition-all duration-300 hover:scale-105 hover:shadow-xl border-0 text-subheading"
 			>
 				<Plus class="w-5 h-5 mr-3" />
@@ -913,7 +970,11 @@ onDestroy(() => {
 		</div>
 
 	{#if showCreateForm || showEditForm}
-		<Card id="create-form" class="mb-12 bg-card border border-border shadow-xl rounded-3xl overflow-hidden transition-all duration-500 animate-slide-up">
+		<div class="form-container">
+			<Card 
+				id="create-form" 
+				class="mb-12 bg-card border border-border shadow-xl rounded-3xl overflow-hidden animate-slide-up"
+			>
 			<Content class="space-y-8 p-8">
 				<h2 class="text-3xl text-heading text-card-foreground mb-6">
 					{showEditForm ? 'Erinnerung bearbeiten' : 'Neue Erinnerung erstellen'}
@@ -1090,24 +1151,121 @@ onDestroy(() => {
 
 				<fieldset class="transition-all duration-300">
 					<legend class="block text-sm text-subheading text-card-foreground mb-4">Akzentfarbe wählen</legend>
-					<div class="flex gap-4">
+					<div class="flex gap-4 items-center">
 						{#each Object.entries(colorClasses) as [color, classes]}
 							{#if showEditForm}
 								<button
 									type="button"
-									onclick={() => { if (editingReminder) editingReminder.color = color as ReminderColor; }}
+									onclick={() => { 
+										if (editingReminder) {
+											editingReminder.color = color as ReminderColor;
+											showEditColorPicker = false;
+										}
+									}}
 									aria-label="Farbe {color} auswählen"
 									class="w-10 h-10 rounded-full {classes} {editingReminder?.color === color ? 'ring-4 ring-primary scale-110 shadow-lg' : 'ring-2 ring-border'} transition-all duration-300 hover:scale-105 hover:shadow-md"
 								></button>
 							{:else}
 								<button
 									type="button"
-									onclick={() => newReminder.color = color as ReminderColor}
+									onclick={() => {
+										newReminder.color = color as ReminderColor;
+										showColorPicker = false;
+									}}
 									aria-label="Farbe {color} auswählen"
 									class="w-10 h-10 rounded-full {classes} {newReminder.color === color ? 'ring-4 ring-primary scale-110 shadow-lg' : 'ring-2 ring-border'} transition-all duration-300 hover:scale-105 hover:shadow-md"
 								></button>
 							{/if}
 						{/each}
+						
+						<!-- Custom Color Picker Button -->
+							{#if showEditForm}
+								<Popover.Root bind:open={showEditColorPicker}>
+									<Popover.Trigger>
+										<button
+											type="button"
+											aria-label="Benutzerdefinierte Farbe wählen"
+											class="w-10 h-10 rounded-full transition-all duration-300 hover:scale-105 hover:shadow-md overflow-hidden flex items-center justify-center {editingReminder?.color?.startsWith('#') ? 'ring-4 ring-primary scale-110 shadow-lg' : 'ring-2 ring-border'}"
+											style="{editingReminder?.color?.startsWith('#') ? `background: ${editingReminder.color};` : 'background: linear-gradient(45deg, #7f5af0, #50fa7b, #e8a87c, #ff6b6b);'}"
+										>
+											{#if !editingReminder?.color?.startsWith('#')}
+												<Palette class="w-4 h-4 text-white drop-shadow-sm" />
+											{/if}
+										</button>
+									</Popover.Trigger>
+									<Popover.Content class="w-auto p-4 bg-card border border-border rounded-xl shadow-xl">
+										<div class="space-y-3">
+											<h4 class="text-sm font-medium text-card-foreground">Benutzerdefinierte Farbe</h4>
+											<ColorPicker 
+												bind:hex={editCustomColor}
+												position="responsive"
+												isDialog={false}
+												--picker-height="120px"
+												--picker-width="200px"
+												--slider-width="20px"
+												--cp-bg-color="hsl(var(--card))"
+												--cp-border-color="hsl(var(--border))"
+												--cp-text-color="hsl(var(--card-foreground))"
+												--cp-input-color="hsl(var(--input))"
+												--cp-button-hover-color="hsl(var(--accent))"
+											/>
+											<Button 
+												onclick={() => {
+													if (editingReminder) {
+														editingReminder.color = editCustomColor;
+														showEditColorPicker = false;
+													}
+												}}
+												class="w-full bg-primary hover:bg-primary/90 text-primary-foreground"
+											>
+												Farbe übernehmen
+											</Button>
+										</div>
+									</Popover.Content>
+								</Popover.Root>
+							{:else}
+								<Popover.Root bind:open={showColorPicker}>
+									<Popover.Trigger>
+										<button
+											type="button"
+											aria-label="Benutzerdefinierte Farbe wählen"
+											class="w-10 h-10 rounded-full transition-all duration-300 hover:scale-105 hover:shadow-md overflow-hidden flex items-center justify-center {newReminder.color?.startsWith('#') ? 'ring-4 ring-primary scale-110 shadow-lg' : 'ring-2 ring-border'}"
+											style="{newReminder.color?.startsWith('#') ? `background: ${newReminder.color};` : 'background: linear-gradient(45deg, #7f5af0, #50fa7b, #e8a87c, #ff6b6b);'}"
+										>
+											{#if !newReminder.color?.startsWith('#')}
+											<Palette class="w-4 h-4 text-white drop-shadow-sm" />
+										{/if}
+										</button>
+									</Popover.Trigger>
+									<Popover.Content class="w-auto p-4 bg-card border border-border rounded-xl shadow-xl">
+										<div class="space-y-3">
+											<h4 class="text-sm font-medium text-card-foreground">Benutzerdefinierte Farbe</h4>
+											<ColorPicker 
+												bind:hex={customColor}
+												position="responsive"
+												isDialog={false}
+												--picker-height="120px"
+												--picker-width="200px"
+												--slider-width="20px"
+												--cp-bg-color="hsl(var(--card))"
+												--cp-border-color="hsl(var(--border))"
+												--cp-text-color="hsl(var(--card-foreground))"
+												--cp-input-color="hsl(var(--input))"
+												--cp-button-hover-color="hsl(var(--accent))"
+											/>
+											<Button 
+												onclick={() => {
+													newReminder.color = customColor;
+													showColorPicker = false;
+												}}
+												class="w-full bg-primary hover:bg-primary/90 text-primary-foreground"
+											>
+												Farbe übernehmen
+											</Button>
+										</div>
+									</Popover.Content>
+								</Popover.Root>
+							{/if}
 					</div>
 				</fieldset>
 
@@ -1121,15 +1279,29 @@ onDestroy(() => {
 					</Button>
 					<Button 
 						onclick={() => {
+			// Add closing animation to form container
+			const formContainer = document.querySelector('.form-container');
+			if (formContainer) {
+				formContainer.classList.add('closing');
+			}
+			
+			// Close form after animation
+			setTimeout(() => {
 				showCreateForm = false;
 				showEditForm = false;
 				resetForm();
 				cancelEdit();
+			}, 600);
+			
+			// Smooth scroll to top with CSS scroll-behavior
+			setTimeout(() => {
 				const contentScroll = document.getElementById('content-scroll');
 				if (contentScroll) {
-					contentScroll.scrollTo({ top: 0, behavior: 'smooth' });
+					contentScroll.style.scrollBehavior = 'smooth';
+					contentScroll.scrollTop = 0;
 				}
-			}}
+			}, 700);
+		}}
 						variant="outline"
 						class="flex-1 border-2 border-border text-muted-foreground hover:bg-destructive/10 hover:text-destructive py-4 rounded-xl text-subheading transition-all duration-300 hover:scale-105 hover:border-destructive"
 					>
@@ -1137,7 +1309,8 @@ onDestroy(() => {
 					</Button>
 				</div>
 			</Content>
-		</Card>
+			</Card>
+		</div>
 	{/if}
 
 	<div class="grid gap-6 transition-all duration-800" style="transition-timing-function: cubic-bezier(0.25, 0.46, 0.45, 0.94);">
@@ -1154,7 +1327,10 @@ onDestroy(() => {
 				<Content class="p-8 transition-all duration-800" style="transition-timing-function: cubic-bezier(0.25, 0.46, 0.45, 0.94);">
 					<div class="flex items-center justify-between gap-4">
 						<div class="flex items-center gap-6 flex-1 min-w-0">
-							<div class="w-6 h-6 rounded-full {colorClasses[reminder.color]} flex-shrink-0 shadow-md transition-all duration-300 group-hover:scale-110"></div>
+							<div 
+								class="w-6 h-6 rounded-full flex-shrink-0 shadow-md transition-all duration-300 group-hover:scale-110 {getColorStyle(reminder.color)}"
+								style="{getCustomColorStyle(reminder.color)}"
+							></div>
 							<div class="flex-1 min-w-0">
 								<h3 class="text-xl text-subheading text-card-foreground mb-3 truncate">{reminder.name}</h3>
 								<div class="space-y-2">
