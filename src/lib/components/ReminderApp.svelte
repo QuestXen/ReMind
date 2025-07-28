@@ -444,14 +444,8 @@
 
 	async function sendNotification(reminder: Reminder) {
 		try {
-
-			const audio = new Audio('ms-winsoundevent:Notification.Default');
-			audio.play().catch(() => {
-				const fallbackAudio = new Audio('data:audio/wav;base64,UklGRnoGAABXQVZFZm10IBAAAAABAAEAQB8AAEAfAAABAAgAZGF0YQoGAACBhYqFbF1fdJivrJBhNjVgodDbq2EcBj+a2/LDciUFLIHO8tiJNwgZaLvt559NEAxQp+PwtmMcBjiR1/LMeSwFJHfH8N2QQAoUXrTp66hVFApGn+DyvmwhBSuBzvLZiTYIG2m98OScTgwOUarm7blmGgU7k9n1unEiBC13yO/eizEIHWq+8+OWT');
-				fallbackAudio.play();
-			});
-			
-			await invoke('send_notification', {
+			// Verwende die neue Funktion, die automatisch die Einstellungen berücksichtigt
+			await invoke('send_notification_with_settings', {
 				title: 'ReMind',
 				body: `Erinnerung: ${reminder.name}`
 			});
@@ -470,17 +464,7 @@
 					body: `Erinnerung: ${reminder.name}`,
 					icon: '/favicon.ico'
 				});
-			} else if ('Notification' in window && Notification.permission !== 'denied') {
-				Notification.requestPermission().then(permission => {
-					if (permission === 'granted') {
-						new Notification('ReMind', {
-							body: `Erinnerung: ${reminder.name}`,
-							icon: '/favicon.ico'
-						});
-					}
-				});
 			}
-			throw error; 
 		}
 	}
 	

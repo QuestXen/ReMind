@@ -4,7 +4,11 @@ use commands::app_data::{
     update_reminder_last_notified, load_settings, save_settings, update_setting, get_setting,
 };
 use commands::default::{read, write};
-use commands::notifications::{request_permission, send_notification};
+use commands::notifications::{
+    request_permission, send_notification, send_notification_with_sound, 
+    send_reminder_notification, test_notification_sound, send_notification_with_settings,
+    test_notification_with_settings
+};
 use commands::system_info::get_system_info;
 use commands::tray::{handle_window_event, hide_window, quit_app, setup_system_tray, show_window};
 use commands::updater::{check_for_updates, install_update, check_and_install_update};
@@ -102,6 +106,11 @@ pub fn run() {
             read,
             write,
             send_notification,
+            send_notification_with_sound,
+            send_reminder_notification,
+            test_notification_sound,
+            send_notification_with_settings,
+            test_notification_with_settings,
             request_permission,
             save_reminders,
             load_reminders,

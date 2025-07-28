@@ -8,6 +8,41 @@
 
 	let retryCount = 0;
 	const MAX_RETRIES = 3;
+	let updateStatus = $state('checking'); // 'checking', 'updating', 'done'
+	let updateMessage = $state('Update Checken...');
+
+	interface UpdateInfo {
+		available: boolean;
+		version?: string;
+		notes?: string;
+		pubDate?: string;
+	}
+
+	async function checkForUpdates(): Promise<UpdateInfo | null> {
+		try {
+			updateMessage = 'Update Checken...';
+			const updateInfo = await invoke<UpdateInfo>('check_for_updates');
+			return updateInfo;
+		} catch (error) {
+			console.error('Failed to check for updates:', error);
+			return null;
+		}
+	}
+
+	async function installUpdate(): Promise<boolean> {
+		try {
+			updateStatus = 'updating';
+			updateMessage = 'Update wird installiert...';
+			
+			await invoke('install_update');
+			
+			updateMessage = 'Update abgeschlossen. Anwendung wird neu gestartet...';
+			return true;
+		} catch (error) {
+			console.error('Failed to install update:', error);
+			return false;
+		}
+	}
 
 	async function loadAppData() {
 		try {
@@ -33,10 +68,11 @@
 			reminders.set(loadedReminders);
 
 			// Small delay to show loading animation
-			await new Promise(resolve => setTimeout(resolve, 500));
+			await new Promise(resolve => setTimeout(resolve, 300));
 
 			isLoading.set(false);
 			retryCount = 0;
+			updateStatus = 'done';
 
 			console.log('App data loaded successfully:', {
 				settings: appSettings,
@@ -44,8 +80,9 @@
 			});
 		} catch (error) {
 			console.error('Failed to load app data:', error);
-			loadingError.set(`Fehler beim Laden der Anwendungsdaten: ${error}`);
+
 			isLoading.set(false);
+			updateStatus = 'done';
 		}
 	}
 
@@ -59,20 +96,41 @@
 		}
 	}
 
-	onMount(() => {
-		// Delay the data loading to allow update check first
-		setTimeout(() => {
+	onMount(async () => {
+		// First check for updates
+		const updateInfo = await checkForUpdates();
+		
+		if (updateInfo?.available) {
+			console.log(`Update available: ${updateInfo.version}`);
+			updateMessage = `Update ${updateInfo.version} verfügbar. Installation wird gestartet...`;
+			
+			// Wait a moment to show the message
+			await new Promise(resolve => setTimeout(resolve, 1000));
+			
+			// Install update automatically
+			const updateSuccess = await installUpdate();
+			
+			if (!updateSuccess) {
+				// If update failed, continue with normal loading
+				updateStatus = 'done';
+				loadAppData();
+			}
+			// If update succeeded, the app will restart automatically
+		} else {
+			// No update available, continue with normal loading
+			updateStatus = 'done';
 			loadAppData();
-		}, 2000); // Give update system time to check and install
+		}
 	});
 </script>
 
 <main class="bg-background min-h-screen">
-	{#if $isLoading}
+	{#if $isLoading || updateStatus !== 'done'}
 		<Loading 
-			message="Lade Erinnerungen und Einstellungen" 
+			message={updateStatus === 'done' ? 'Lade Erinnerungen und Einstellungen' : updateMessage}
 			error={$loadingError}
 			retryCallback={$loadingError ? retryLoading : undefined}
+			isUpdating={updateStatus === 'updating'}
 		/>
 	{:else}
 		<ReminderApp />

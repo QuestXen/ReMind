@@ -25,9 +25,6 @@
 		dispatch('close');
 	}
 
-
-
-
 	async function toggleAutostart(checked: boolean) {
 		if (updating) {
 			console.log('[Frontend] Ignoring toggle - updating');
@@ -61,6 +58,36 @@
 			// Revert store on error
 			updateSetting('autostartEnabled', !checked);
 			console.log('[Frontend] Reverted autostart setting due to error');
+		} finally {
+			updating = false;
+		}
+	}
+
+	async function toggleNotificationSound(checked: boolean) {
+		if (updating) {
+			console.log('[Frontend] Ignoring toggle - updating');
+			return;
+		}
+		
+		try {
+			console.log('[Frontend] Toggling notification sound to:', checked);
+			updating = true;
+			
+			// Update store immediately for responsive UI
+			updateSetting('notificationSound', checked);
+			
+			// Save to backend
+			await invoke('update_setting', { 
+				key: 'notificationSound', 
+				value: checked 
+			});
+			console.log('[Frontend] Notification sound setting saved to backend');
+			
+		} catch (error) {
+			console.error('[Frontend] Failed to toggle notification sound:', error);
+			// Revert store on error
+			updateSetting('notificationSound', !checked);
+			console.log('[Frontend] Reverted notification sound setting due to error');
 		} finally {
 			updating = false;
 		}
@@ -101,7 +128,8 @@
 					<h1 class="text-heading text-foreground mb-4 text-3xl">Einstellungen</h1>
 				</div>
 
-				<div class="bg-card border-border rounded-3xl border p-8">
+				<!-- Autostart Setting -->
+				<div class="bg-card border-border rounded-3xl border p-8 mb-6">
 					<div class="space-y-6">
 						<div class="flex items-center justify-between">
 							<div class="space-y-1">
@@ -113,10 +141,33 @@
 									<div class="animate-spin rounded-full h-5 w-5 border-b-2 border-primary"></div>
 								{:else}
 									<Switch 
-								bind:checked={$settings.autostartEnabled} 
-								disabled={updating}
-								onCheckedChange={toggleAutostart}
-							/>
+									bind:checked={$settings.autostartEnabled} 
+									disabled={updating}
+									onCheckedChange={toggleAutostart}
+								/>
+								{/if}
+							</div>
+						</div>
+					</div>
+				</div>
+
+				<!-- Notification Sound Setting -->
+				<div class="bg-card border-border rounded-3xl border p-8">
+					<div class="space-y-6">
+						<div class="flex items-center justify-between">
+							<div class="space-y-1">
+								<h3 class="text-heading text-card-foreground text-lg">Benachrichtigungssound</h3>
+								<p class="text-muted-foreground text-body text-sm">Windows-Systemsound bei Benachrichtigungen abspielen (standardmäßig aktiviert)</p>
+							</div>
+							<div class="flex items-center">
+								{#if loading}
+									<div class="animate-spin rounded-full h-5 w-5 border-b-2 border-primary"></div>
+								{:else}
+									<Switch 
+									bind:checked={$settings.notificationSound} 
+									disabled={updating}
+									onCheckedChange={toggleNotificationSound}
+								/>
 								{/if}
 							</div>
 						</div>
