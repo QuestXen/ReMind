@@ -51,10 +51,14 @@ pub fn get_system_info() -> SystemInfo {
 #[cfg(target_os = "windows")]
 fn get_windows_version() -> String {
     use std::process::Command;
+    use std::os::windows::process::CommandExt;
+    
+    const CREATE_NO_WINDOW: u32 = 0x08000000;
 
     // Versuche Windows-Version über wmic zu ermitteln
     if let Ok(output) = Command::new("wmic")
         .args(["os", "get", "Caption", "/value"])
+        .creation_flags(CREATE_NO_WINDOW)
         .output()
     {
         if let Ok(output_str) = String::from_utf8(output.stdout) {
