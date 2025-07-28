@@ -75,9 +75,7 @@ jobs:
             ## 🚀 ReMind v__VERSION__
 
             ### ✨ Was ist neu?
-            - Automatische Updates via GitHub Gist
             - Verbesserte Performance und Stabilität
-            - Optimierte Build-Pipeline mit pnpm
 
             ### 📦 Installation
             Laden Sie die .msi Datei herunter und führen Sie sie aus.
