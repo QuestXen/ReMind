@@ -4,7 +4,7 @@
 	import { Input } from '$lib/components/ui/input/index';
 	import { invoke } from '@tauri-apps/api/core';
 	import { Plus, Bell, Trash2, Calendar, Clock, Edit, Settings } from '@lucide/svelte';
-	import { onMount } from 'svelte';
+	import { onMount, onDestroy } from 'svelte';
 	import SettingsComponent from './Settings.svelte';
 	import TitleBar from './TitleBar.svelte';
 
@@ -37,7 +37,13 @@
 		color: 'blue' as ReminderColor
 	});
 
-	let reminderTimers = new Map<string, NodeJS.Timeout>();
+	let reminderTimers = new Map<string, {
+		timerId: NodeJS.Timeout;
+		nextExecution: Date;
+		isActive: boolean;
+	}>();
+	
+	let timerCleanupInterval: NodeJS.Timeout | null = null;
 
 	const colorClasses = {
 		blue: 'bg-blue-500 border-blue-200 text-blue-50',
@@ -82,7 +88,6 @@
 				}
 			}, 100);
 			
-			// Start notification timer
 			startReminderTimer(reminder);
 		} catch (error) {
 			console.error('Failed to create reminder:', error);
@@ -109,32 +114,28 @@
 
 	async function updateReminder() {
 		if (!editingReminder || !editingReminder.name.trim()) return;
-		
-		// Clear existing timer
-		const existingTimer = reminderTimers.get(editingReminder!.id);
-		if (existingTimer) {
-			clearTimeout(existingTimer);
-			reminderTimers.delete(editingReminder!.id);
-		}
+		clearReminderTimer(editingReminder.id);
 		
 		try {
-			// Update reminder via Rust backend
 			await invoke('update_reminder', { reminder: editingReminder });
 			
-			// Update local state
 			const index = reminders.findIndex(r => r.id === editingReminder!.id);
 			if (index !== -1) {
 				reminders[index] = editingReminder;
-				reminders = reminders; // Trigger reactivity
+				reminders = reminders;
 				
-				// Start new timer
 				startReminderTimer(editingReminder!);
 			}
 			
+			const updatedReminderName = editingReminder.name;
 			showEditForm = false;
 			editingReminder = null;
+			console.log(`Updated reminder: ${updatedReminderName}`);
 		} catch (error) {
 			console.error('Failed to update reminder:', error);
+			if (editingReminder) {
+				startReminderTimer(editingReminder);
+			}
 		}
 	}
 
@@ -152,16 +153,12 @@
 	}
 
 	async function deleteReminder(id: string) {
+		clearReminderTimer(id);
+		
 		try {
 			await invoke('delete_reminder', { reminderId: id });
 			reminders = reminders.filter(r => r.id !== id);
-			
-			// Clear timer if exists
-			const timerId = reminderTimers.get(id);
-			if (timerId) {
-				clearTimeout(timerId);
-				reminderTimers.delete(id);
-			}
+			console.log(`Deleted reminder with ID: ${id}`);
 		} catch (error) {
 			console.error('Failed to delete reminder:', error);
 		}
@@ -171,7 +168,6 @@
 		try {
 			reminders = await invoke<Reminder[]>('load_reminders');
 			
-			// Start timers for all loaded reminders
 			reminders.forEach(reminder => {
 				startReminderTimer(reminder);
 			});
@@ -181,104 +177,224 @@
 	}
 
 	function startReminderTimer(reminder: Reminder) {
-		let intervalMs = 0;
+		clearReminderTimer(reminder.id);
+		
+		const now = new Date();
+		let nextExecution: Date;
 		
 		switch (reminder.interval) {
 			case 'minutes':
-				intervalMs = reminder.intervalValue * 60 * 1000;
+				nextExecution = new Date(now.getTime() + reminder.intervalValue * 60 * 1000);
 				break;
 			case 'hours':
-				intervalMs = reminder.intervalValue * 60 * 60 * 1000;
+				nextExecution = new Date(now.getTime() + reminder.intervalValue * 60 * 60 * 1000);
 				break;
 			case 'days':
-				intervalMs = reminder.intervalValue * 24 * 60 * 60 * 1000;
+				nextExecution = new Date(now.getTime() + reminder.intervalValue * 24 * 60 * 60 * 1000);
 				break;
 			case 'weeks':
-				intervalMs = reminder.intervalValue * 7 * 24 * 60 * 60 * 1000;
+				nextExecution = new Date(now.getTime() + reminder.intervalValue * 7 * 24 * 60 * 60 * 1000);
 				break;
 			case 'months':
-				intervalMs = reminder.intervalValue * 30 * 24 * 60 * 60 * 1000;
+				nextExecution = new Date(now);
+				nextExecution.setMonth(nextExecution.getMonth() + reminder.intervalValue);
 				break;
 			case 'specific':
-				if (reminder.specificDate) {
-					const targetDate = new Date(reminder.specificDate);
-					const now = new Date();
-					intervalMs = targetDate.getTime() - now.getTime();
-					if (intervalMs <= 0) return;
+				if (!reminder.specificDate) {
+					console.warn(`Reminder ${reminder.id} has no specific date set`);
+					return;
+				}
+				nextExecution = new Date(reminder.specificDate);
+				if (nextExecution <= now) {
+					console.warn(`Reminder ${reminder.id} scheduled for past date: ${nextExecution}`);
+					return;
 				}
 				break;
+			default:
+				console.error(`Unknown interval type: ${reminder.interval}`);
+				return;
 		}
 		
-		if (intervalMs > 0) {
-			const timerId = setTimeout(() => {
-				sendNotification(reminder);
-				if (reminder.interval !== 'specific') {
-					startReminderTimer(reminder); // Restart for recurring reminders
-				}
-			}, intervalMs);
-			
-			reminderTimers.set(reminder.id, timerId);
+		const timeUntilExecution = nextExecution.getTime() - now.getTime();
+		if (timeUntilExecution <= 0) {
+			console.warn(`Invalid execution time for reminder ${reminder.id}`);
+			return;
 		}
+		
+		if (timeUntilExecution > 2147483647) {
+			console.warn(`Execution time too far in future for reminder ${reminder.id}, scheduling for max timeout`);
+			const timerId = setTimeout(() => {
+				startReminderTimer(reminder); 
+			}, 2147483647);
+			
+			reminderTimers.set(reminder.id, {
+				timerId,
+				nextExecution,
+				isActive: true
+			});
+			return;
+		}
+		
+		const timerId = setTimeout(async () => {
+			try {
+				await sendNotification(reminder);
+				
+				if (reminder.interval !== 'specific') {
+					startReminderTimer(reminder);
+				} else {
+					clearReminderTimer(reminder.id);
+				}
+			} catch (error) {
+				console.error(`Failed to execute reminder ${reminder.id}:`, error);
+				setTimeout(() => startReminderTimer(reminder), 60000);
+			}
+		}, timeUntilExecution);
+		
+		reminderTimers.set(reminder.id, {
+			timerId,
+			nextExecution,
+			isActive: true
+		});
+		
+		console.log(`Scheduled reminder "${reminder.name}" for ${nextExecution.toLocaleString('de-DE')}`);
+	}
+	
+	function clearReminderTimer(reminderId: string) {
+		const timerInfo = reminderTimers.get(reminderId);
+		if (timerInfo) {
+			clearTimeout(timerInfo.timerId);
+			reminderTimers.delete(reminderId);
+			console.log(`Cleared timer for reminder ${reminderId}`);
+		}
+	}
+	
+	function clearAllTimers() {
+		reminderTimers.forEach((timerInfo, id) => {
+			clearTimeout(timerInfo.timerId);
+		});
+		reminderTimers.clear();
+		console.log('Cleared all reminder timers');
 	}
 
 	async function sendNotification(reminder: Reminder) {
 		try {
-			// Play Windows notification sound
+
 			const audio = new Audio('ms-winsoundevent:Notification.Default');
 			audio.play().catch(() => {
-				// Fallback to system beep if Windows sound fails
 				const fallbackAudio = new Audio('data:audio/wav;base64,UklGRnoGAABXQVZFZm10IBAAAAABAAEAQB8AAEAfAAABAAgAZGF0YQoGAACBhYqFbF1fdJivrJBhNjVgodDbq2EcBj+a2/LDciUFLIHO8tiJNwgZaLvt559NEAxQp+PwtmMcBjiR1/LMeSwFJHfH8N2QQAoUXrTp66hVFApGn+DyvmwhBSuBzvLZiTYIG2m98OScTgwOUarm7blmGgU7k9n1unEiBC13yO/eizEIHWq+8+OWT');
 				fallbackAudio.play();
 			});
 			
 			await invoke('send_notification', {
-				title: 'Erinnerung',
-				body: reminder.name
+				title: 'ReMind',
+				body: `Erinnerung: ${reminder.name}`
 			});
+			console.log(`Notification sent for reminder: ${reminder.name}`);
 			
 			const timestamp = new Date().toISOString();
 			await invoke('update_reminder_last_notified', {
 				reminderId: reminder.id,
 				timestamp
 			});
-			
-			// Update local state
 			reminder.lastNotified = timestamp;
 		} catch (error) {
 			console.error('Failed to send notification:', error);
+			if ('Notification' in window && Notification.permission === 'granted') {
+				new Notification('ReMind', {
+					body: `Erinnerung: ${reminder.name}`,
+					icon: '/favicon.ico'
+				});
+			} else if ('Notification' in window && Notification.permission !== 'denied') {
+				Notification.requestPermission().then(permission => {
+					if (permission === 'granted') {
+						new Notification('ReMind', {
+							body: `Erinnerung: ${reminder.name}`,
+							icon: '/favicon.ico'
+						});
+					}
+				});
+			}
+			throw error; 
 		}
+	}
+	
+	function getTimerStatus() {
+		const status = {
+			activeTimers: reminderTimers.size,
+			timers: Array.from(reminderTimers.entries()).map(([id, timerInfo]) => {
+				const reminder = reminders.find(r => r.id === id);
+				return {
+					id,
+					name: reminder?.name || 'Unknown',
+					nextExecution: timerInfo.nextExecution.toLocaleString('de-DE'),
+					timeUntilExecution: Math.max(0, timerInfo.nextExecution.getTime() - Date.now()),
+					isActive: timerInfo.isActive
+				};
+			})
+		};
+		console.table(status.timers);
+		return status;
+	}
+	if (typeof window !== 'undefined' && import.meta.env.DEV) {
+		(window as any).getTimerStatus = getTimerStatus;
+		(window as any).clearAllTimers = clearAllTimers;
+		console.log('Debug functions available: getTimerStatus(), clearAllTimers()');
 	}
 
 	function formatReminderInfo(reminder: Reminder): string {
 		if (reminder.interval === 'specific' && reminder.specificDate) {
 			return `Am ${new Date(reminder.specificDate).toLocaleDateString('de-DE')}`;
 		}
-		return `Alle ${reminder.intervalValue} ${intervalLabels[reminder.interval]}`;
-	}
+	return `Alle ${reminder.intervalValue} ${intervalLabels[reminder.interval]}`;
+}
 
-	onMount(() => {
-		loadReminders();
+onMount(() => {
+	loadReminders().then(() => {
+		reminders.forEach(reminder => {
+			startReminderTimer(reminder);
+		});
 		
-		// Close dropdowns when clicking outside
-		const handleClickOutside = (event: MouseEvent) => {
-			const editDropdown = document.getElementById('edit-interval-dropdown');
-			const newDropdown = document.getElementById('new-interval-dropdown');
-			const target = event.target as Element;
-			
-			if (editDropdown && !editDropdown.closest('.custom-dropdown')?.contains(target)) {
-				editDropdown.classList.add('hidden');
-			}
-			if (newDropdown && !newDropdown.closest('.custom-dropdown')?.contains(target)) {
-				newDropdown.classList.add('hidden');
-			}
-		};
+		timerCleanupInterval = setInterval(() => {
+			const now = new Date();
+			reminderTimers.forEach((timerInfo, id) => {
+				if (timerInfo.nextExecution <= now && !timerInfo.isActive) {
+					clearReminderTimer(id);
+				}
+			});
+		}, 5 * 60 * 1000);
 		
-		document.addEventListener('click', handleClickOutside);
-		
-		return () => {
-			document.removeEventListener('click', handleClickOutside);
-		};
+		console.log(`Initialized ${reminders.length} reminders with timers`);
+	}).catch(error => {
+		console.error('Failed to initialize reminders:', error);
 	});
+	
+	const handleClickOutside = (event: MouseEvent) => {
+		const editDropdown = document.getElementById('edit-interval-dropdown');
+		const newDropdown = document.getElementById('new-interval-dropdown');
+		const target = event.target as Element;
+		
+		if (editDropdown && !editDropdown.closest('.custom-dropdown')?.contains(target)) {
+			editDropdown.classList.add('hidden');
+		}
+		if (newDropdown && !newDropdown.closest('.custom-dropdown')?.contains(target)) {
+			newDropdown.classList.add('hidden');
+		}
+	};
+	
+	document.addEventListener('click', handleClickOutside);
+	
+	return () => {
+		document.removeEventListener('click', handleClickOutside);
+	};
+});
+
+onDestroy(() => {
+	clearAllTimers();
+	if (timerCleanupInterval) {
+		clearInterval(timerCleanupInterval);
+	}
+	console.log('ReminderApp component destroyed, all timers cleared');
+});
 </script>
 
 <style>
@@ -315,6 +431,28 @@
 		}
 	}
 
+	@keyframes slide-in-left {
+		from {
+			opacity: 0;
+			transform: translateX(20px);
+		}
+		to {
+			opacity: 1;
+			transform: translateX(0);
+		}
+	}
+
+	@keyframes slide-up-staggered {
+		from {
+			opacity: 0;
+			transform: translateY(30px);
+		}
+		to {
+			opacity: 1;
+			transform: translateY(0);
+		}
+	}
+
 	.animate-fade-in {
 		animation: fade-in 0.6s ease-out;
 	}
@@ -323,16 +461,22 @@
 		animation: slide-up 0.4s ease-out;
 	}
 
+	.animate-slide-up-staggered {
+		animation: slide-up-staggered 0.5s ease-out;
+	}
+
 	.animate-slide-out-left {
 		animation: slide-out-left 0.3s ease-out;
 	}
 
-	/* Smooth scrolling */
+	.animate-slide-in-left {
+		animation: slide-in-left 0.3s ease-out;
+	}
+
 	* {
 		scroll-behavior: smooth;
 	}
 
-	/* Hide scrollbars */
 	html, body {
 		scrollbar-width: none;
 		-ms-overflow-style: none;
@@ -342,7 +486,6 @@
 		display: none;
 	}
 
-	/* Custom focus styles */
 	input:focus,
 	select:focus,
 	button:focus {
@@ -350,7 +493,6 @@
 		box-shadow: 0 0 0 3px rgba(0, 0, 0, 0.1);
 	}
 
-	/* Custom Dropdown Styles */
 	.custom-dropdown {
 		position: relative;
 	}
@@ -396,11 +538,10 @@
 {#if showSettings}
 	<SettingsComponent on:close={closeSettings} />
 {:else}
-<!-- ReminderApp -->
-<div class="flex flex-col h-screen overflow-hidden {showSettings ? 'animate-slide-out-left' : ''}">
+<div class="flex flex-col h-screen overflow-hidden">
 	<TitleBar title="Re:Mind" icon="R" />
 
-  <div id="content-scroll" class="flex-1 overflow-y-auto bg-background relative">
+  <div id="content-scroll" class="flex-1 overflow-y-auto bg-background relative {showSettings ? 'animate-slide-out-left' : 'animate-slide-in-left'}">
 	<div class="p-6">
 		<div class="max-w-4xl mx-auto">
 		<div class="flex justify-center mb-12">
@@ -635,15 +776,15 @@
 
 	<div class="grid gap-6">
 		{#if reminders.length === 0}
-			<Card class="bg-card border border-border shadow-lg rounded-3xl overflow-hidden animate-fade-in">
+			<Card class="bg-card border border-border shadow-lg rounded-3xl overflow-hidden animate-slide-up-staggered">
 				<Content class="text-center py-16">
 					<h3 class="text-2xl text-heading text-card-foreground mb-3">Noch keine Erinnerungen</h3>
 					<p class="text-muted-foreground text-lg text-caption">Erstelle deine erste Erinnerung</p>
 				</Content>
 			</Card>
 		{:else}
-			{#each reminders as reminder (reminder.id)}
-				<Card id={`reminder-${reminder.id}`} class="bg-card border border-border shadow-lg hover:shadow-xl rounded-3xl overflow-hidden transition-all duration-300 group hover:scale-[1.02] animate-slide-up">
+			{#each reminders as reminder, index (reminder.id)}
+			<Card id={`reminder-${reminder.id}`} class="bg-card border border-border shadow-lg hover:shadow-xl rounded-3xl overflow-hidden transition-all duration-300 group hover:scale-[1.02] animate-slide-up-staggered" style="animation-delay: {index * 0.1}s;">
 					<Content class="p-8">
 						<div class="flex items-center justify-between">
 							<div class="flex items-center gap-6">
@@ -693,7 +834,6 @@
 </div>
 {/if}
 
-<!-- Settings Button - Only visible when not in settings -->
 {#if !showSettings}
 	<div class="fixed bottom-6 right-6 z-50">
 		<Button

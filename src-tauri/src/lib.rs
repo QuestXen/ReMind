@@ -29,6 +29,60 @@ pub fn run() {
             // Setup system tray
             setup_system_tray(&app.handle()).expect("Failed to setup system tray");
 
+            // Get the main window and inject script to disable context menu
+            if let Some(window) = app.get_webview_window("main") {
+                let _ = window.eval(
+                    r#"
+                    document.addEventListener('DOMContentLoaded', function() {
+                        // Disable right-click context menu
+                        document.addEventListener('contextmenu', function(e) {
+                            e.preventDefault();
+                            return false;
+                        });
+                        
+                        // Disable common keyboard shortcuts
+                        document.addEventListener('keydown', function(e) {
+                            // Disable F12 (Developer Tools)
+                            if (e.key === 'F12') {
+                                e.preventDefault();
+                                return false;
+                            }
+                            // Disable Ctrl+Shift+I (Developer Tools)
+                            if (e.ctrlKey && e.shiftKey && e.key === 'I') {
+                                e.preventDefault();
+                                return false;
+                            }
+                            // Disable Ctrl+U (View Source)
+                            if (e.ctrlKey && e.key === 'u') {
+                                e.preventDefault();
+                                return false;
+                            }
+                            // Disable Ctrl+Shift+C (Inspect Element)
+                            if (e.ctrlKey && e.shiftKey && e.key === 'C') {
+                                e.preventDefault();
+                                return false;
+                            }
+                            // Disable F5 and Ctrl+R (Refresh)
+                            if (e.key === 'F5' || (e.ctrlKey && e.key === 'r')) {
+                                e.preventDefault();
+                                return false;
+                            }
+                            // Disable Ctrl+P (Print)
+                            if (e.ctrlKey && e.key === 'p') {
+                                e.preventDefault();
+                                return false;
+                            }
+                            // Disable Ctrl+S (Save)
+                            if (e.ctrlKey && e.key === 's') {
+                                e.preventDefault();
+                                return false;
+                            }
+                        });
+                    });
+                    "#
+                );
+            }
+
             Ok(())
         })
         .plugin(tauri_plugin_notification::init())

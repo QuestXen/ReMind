@@ -148,11 +148,11 @@ pub fn save_settings(app: AppHandle, settings: AppSettings) -> Result<(), Error>
 }
 
 #[tauri::command]
-pub fn load_settings(app: AppHandle) -> Result<AppSettings, Error> {
+pub fn load_settings(app: AppHandle) -> AppSettings {
     println!("[Backend] Loading settings...");
     let app_data = load_app_data(&app).unwrap_or_default();
     println!("[Backend] Loaded settings: {:?}", app_data.settings);
-    Ok(app_data.settings)
+    app_data.settings
 }
 
 #[tauri::command]
@@ -166,35 +166,10 @@ pub fn update_autostart_setting(app: AppHandle, enabled: bool) -> Result<(), Err
 }
 
 #[tauri::command]
-pub fn get_autostart_setting(app: AppHandle) -> Result<bool, Error> {
+pub fn get_autostart_setting(app: AppHandle) -> bool {
     println!("[Backend] Getting autostart setting...");
     let app_data = load_app_data(&app).unwrap_or_default();
     let enabled = app_data.settings.autostart_enabled;
     println!("[Backend] Autostart setting: {}", enabled);
-    Ok(enabled)
-}
-
-#[tauri::command]
-pub fn update_setting(app: AppHandle, key: String, value: serde_json::Value) -> Result<(), Error> {
-    let mut app_data = load_app_data(&app).unwrap_or_default();
-    
-    match key.as_str() {
-        "autostart_enabled" => {
-            if let Some(bool_val) = value.as_bool() {
-                app_data.settings.autostart_enabled = bool_val;
-            }
-        }
-        "theme" => {
-            app_data.settings.theme = value.as_str().map(|s| s.to_string());
-        }
-        "notification_sound" => {
-            if let Some(bool_val) = value.as_bool() {
-                app_data.settings.notification_sound = bool_val;
-            }
-        }
-        _ => return Err(Error::Io(std::io::Error::new(std::io::ErrorKind::InvalidInput, "Unknown setting key")))
-    }
-    
-    save_app_data(&app, &app_data)?;
-    Ok(())
+    enabled
 }

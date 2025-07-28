@@ -9,12 +9,11 @@
 
 	let { title, icon, showWindowControls = true }: Props = $props();
 
-	// Window control functions
 	let appWindow: any = null;
 	try {
 		appWindow = getCurrentWindow();
 	} catch (error) {
-		// Ignore error when running in web mode
+
 	}
 
 	const minimize = () => appWindow?.minimize();
@@ -22,7 +21,7 @@
 	const close = () => appWindow?.close();
 </script>
 
-<!-- Custom Title Bar -->
+
 <div
 	class="bg-background border-border flex flex-shrink-0 items-center justify-between border-b p-4 select-none"
 	data-tauri-drag-region
@@ -30,7 +29,7 @@
 	role="button"
 	tabindex="0"
 >
-	<!-- Linke Seite: Icon + Titel -->
+
 	<div class="flex items-center gap-3">
 		<div class="bg-primary flex h-6 w-6 items-center justify-center rounded-full">
 			<span class="text-primary-foreground text-xs font-bold">{icon}</span>
@@ -38,7 +37,7 @@
 		<span class="text-foreground font-medium">{title}</span>
 	</div>
 
-	<!-- Rechte Seite: Window Controls -->
+
 	{#if showWindowControls}
 		<div class="flex items-center gap-2" data-tauri-drag-region="false">
 			<button
@@ -79,11 +78,11 @@
 </div>
 
 <style>
-	/* Ziehbarer Bereich */
+
 	[data-tauri-drag-region] {
 		-webkit-app-region: drag;
 	}
-	/* Klickbare Buttons ausnehmen */
+
 	[data-tauri-drag-region='false'],
 	[data-tauri-drag-region='false'] * {
 		-webkit-app-region: no-drag;

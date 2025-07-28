@@ -25,24 +25,24 @@
 		dispatch('close');
 	}
 
-	// Neue vereinfachte Funktion zum Laden der Autostart-Einstellung
+
 	async function loadAutostartSetting() {
 		try {
 			console.log('[Frontend] Loading autostart setting...');
 			loading = true;
 			
-			// Lade die gespeicherte Einstellung aus der Backend-Datei
+
 			const savedSetting = await invoke<boolean>('get_autostart_setting');
 			console.log('[Frontend] Saved autostart setting:', savedSetting);
 			
-			// Prüfe den aktuellen System-Autostart-Status
+
 			const systemEnabled = await isEnabled();
 			console.log('[Frontend] System autostart enabled:', systemEnabled);
 			
-			// Verwende die gespeicherte Einstellung als Wahrheit
+
 			autostartEnabled = savedSetting;
 			
-			// Synchronisiere das System mit der gespeicherten Einstellung
+
 			if (systemEnabled !== savedSetting) {
 				console.log('[Frontend] Syncing system with saved setting...');
 				if (savedSetting) {
@@ -55,7 +55,6 @@
 			}
 		} catch (error) {
 			console.error('[Frontend] Failed to load autostart setting:', error);
-			// Fallback: verwende System-Status
 			try {
 				autostartEnabled = await isEnabled();
 			} catch (fallbackError) {
@@ -67,7 +66,6 @@
 		}
 	}
 
-	// Neue vereinfachte Funktion zum Umschalten der Autostart-Einstellung
 	async function toggleAutostart(checked: boolean) {
 		if (loading || updating) {
 			console.log('[Frontend] Ignoring toggle - loading or updating');
@@ -78,10 +76,8 @@
 			console.log('[Frontend] Toggling autostart to:', checked);
 			updating = true;
 			
-			// Aktualisiere zuerst die UI
 			autostartEnabled = checked;
 			
-			// Aktualisiere das System
 			if (checked) {
 				await enable();
 				console.log('[Frontend] Autostart enabled in system');
@@ -90,13 +86,11 @@
 				console.log('[Frontend] Autostart disabled in system');
 			}
 			
-			// Speichere die Einstellung in der Backend-Datei
 			await invoke('update_autostart_setting', { enabled: checked });
 			console.log('[Frontend] Autostart setting saved to backend');
 			
 		} catch (error) {
 			console.error('[Frontend] Failed to toggle autostart:', error);
-			// Revertiere bei Fehler
 			autostartEnabled = !checked;
 			console.log('[Frontend] Reverted autostart setting due to error');
 		} finally {
@@ -104,7 +98,6 @@
 		}
 	}
 
-	// Funktion zum Laden der Systeminformationen
 	async function loadSystemInfo() {
 		try {
 			const info = await invoke<SystemInfo>('get_system_info');
@@ -123,9 +116,7 @@
 <div class="flex h-screen flex-col overflow-hidden">
 	<TitleBar title="Einstellungen" icon="S" />
 
-	<!-- Settings Content -->
 	<div class="bg-background animate-slide-in-right flex-1 overflow-y-auto relative">
-		<!-- Zurück Button -->
 		<div class="p-4">
 			<Button
 				onclick={handleClose}
@@ -143,7 +134,6 @@
 					<h1 class="text-heading text-foreground mb-4 text-3xl">Einstellungen</h1>
 				</div>
 
-				<!-- Autostart Einstellung -->
 				<div class="bg-card border-border rounded-3xl border p-8">
 					<div class="space-y-6">
 						<div class="flex items-center justify-between">
@@ -170,15 +160,17 @@
 		</div>
 	</div>
 
-	<!-- Footer mit Systeminformationen -->
 	{#if systemInfo}
 		<div class="bg-background border-t border-border px-6 py-3">
 			<div class="text-center space-y-1">
 				<p class="text-muted-foreground text-xs">
-					ReMind v{systemInfo.app_version}
+					ReMind v{systemInfo.app_version} (Beta)
 				</p>
 				<p class="text-muted-foreground text-xs">
 					{systemInfo.os_version} {systemInfo.arch}
+				</p>
+				<p class="text-muted-foreground text-xs italic">
+					Dies ist eine unfertige Version - Fehler und Performance-Probleme können auftreten
 				</p>
 			</div>
 		</div>
