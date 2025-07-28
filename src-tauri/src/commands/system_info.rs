@@ -1,5 +1,5 @@
-use tauri::command;
 use std::env;
+use tauri::command;
 
 #[derive(serde::Serialize)]
 pub struct SystemInfo {
@@ -12,7 +12,7 @@ pub struct SystemInfo {
 #[command]
 pub fn get_system_info() -> SystemInfo {
     let app_version = env!("CARGO_PKG_VERSION").to_string();
-    
+
     let os_name = if cfg!(target_os = "windows") {
         "Windows".to_string()
     } else if cfg!(target_os = "macos") {
@@ -22,7 +22,7 @@ pub fn get_system_info() -> SystemInfo {
     } else {
         "Unknown".to_string()
     };
-    
+
     let arch = if cfg!(target_arch = "x86_64") {
         "64-Bit".to_string()
     } else if cfg!(target_arch = "x86") {
@@ -32,14 +32,14 @@ pub fn get_system_info() -> SystemInfo {
     } else {
         env::consts::ARCH.to_string()
     };
-    
+
     // Versuche Windows-Version zu ermitteln
     let os_version = if cfg!(target_os = "windows") {
         get_windows_version()
     } else {
         "Unknown".to_string()
     };
-    
+
     SystemInfo {
         app_version,
         os_name,
@@ -51,7 +51,7 @@ pub fn get_system_info() -> SystemInfo {
 #[cfg(target_os = "windows")]
 fn get_windows_version() -> String {
     use std::process::Command;
-    
+
     // Versuche Windows-Version über wmic zu ermitteln
     if let Ok(output) = Command::new("wmic")
         .args(["os", "get", "Caption", "/value"])
@@ -68,7 +68,7 @@ fn get_windows_version() -> String {
             }
         }
     }
-    
+
     // Fallback
     "Windows".to_string()
 }

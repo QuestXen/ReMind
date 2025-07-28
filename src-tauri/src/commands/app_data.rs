@@ -103,12 +103,12 @@ fn load_app_data(app: &AppHandle) -> Result<AppData, Error> {
     }
 
     let json_data = fs::read_to_string(&file_path)?;
-    
+
     // Try to load as current format first
     if let Ok(app_data) = serde_json::from_str::<AppData>(&json_data) {
         return Ok(app_data);
     }
-    
+
     // If that fails, try migration from legacy format
     match migrate_app_data(&json_data) {
         Ok(migrated_data) => {
@@ -130,7 +130,7 @@ fn migrate_app_data(json_data: &str) -> Result<AppData, Error> {
     // Parse as Value first to handle partial structures
     let mut data: serde_json::Value = serde_json::from_str(json_data)
         .map_err(|e| Error::Io(std::io::Error::new(std::io::ErrorKind::Other, e)))?;
-    
+
     // Migrate reminders if they exist
     if let Some(reminders_value) = data.get_mut("reminders") {
         if let Some(reminders_array) = reminders_value.as_array_mut() {
@@ -141,23 +141,26 @@ fn migrate_app_data(json_data: &str) -> Result<AppData, Error> {
                     if !reminder_obj.contains_key("active") {
                         reminder_obj.insert("active".to_string(), serde_json::Value::Bool(true));
                     }
-                    
+
                     // Add other future fields here as needed
                     // Example: if !reminder_obj.contains_key("newField") { ... }
                 }
             }
         }
     }
-    
+
     // Ensure settings exist
     if !data.as_object().unwrap().contains_key("settings") {
-        data.as_object_mut().unwrap().insert("settings".to_string(), serde_json::to_value(default_settings()).unwrap());
+        data.as_object_mut().unwrap().insert(
+            "settings".to_string(),
+            serde_json::to_value(default_settings()).unwrap(),
+        );
     }
-    
+
     // Parse the migrated data as AppData
     let app_data: AppData = serde_json::from_value(data)
         .map_err(|e| Error::Io(std::io::Error::new(std::io::ErrorKind::Other, e)))?;
-    
+
     Ok(app_data)
 }
 
