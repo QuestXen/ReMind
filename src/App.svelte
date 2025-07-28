@@ -60,7 +60,10 @@
 	}
 
 	onMount(() => {
-		loadAppData();
+		// Delay the data loading to allow update check first
+		setTimeout(() => {
+			loadAppData();
+		}, 2000); // Give update system time to check and install
 	});
 </script>
 

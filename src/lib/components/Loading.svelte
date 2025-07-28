@@ -1,5 +1,6 @@
 <script lang="ts">
 	import { onMount } from 'svelte';
+	import { invoke } from '@tauri-apps/api/core';
 
 	interface Props {
 		message?: string;
@@ -11,21 +12,104 @@
 
 	let progress = $state(0);
 	let progressInterval: NodeJS.Timeout;
+	let currentMessage = $state(message);
+	let isUpdating = $state(false);
+
+	interface UpdateInfo {
+		available: boolean;
+		version?: string;
+		notes?: string;
+		pubDate?: string;
+	}
+
+	async function checkForUpdates(): Promise<UpdateInfo | null> {
+		try {
+			currentMessage = 'Suche nach Updates...';
+			const updateInfo = await invoke<UpdateInfo>('check_for_updates');
+			return updateInfo;
+		} catch (error) {
+			console.error('Failed to check for updates:', error);
+			return null;
+		}
+	}
+
+	async function installUpdate(): Promise<boolean> {
+		try {
+			isUpdating = true;
+			currentMessage = 'Update wird installiert...';
+			progress = 0;
+			
+			// Simulate progress during update
+			const updateProgressInterval = setInterval(() => {
+				if (progress < 90) {
+					progress += Math.random() * 10 + 5;
+				}
+			}, 500);
+
+			await invoke('install_update');
+			
+			clearInterval(updateProgressInterval);
+			progress = 100;
+			currentMessage = 'Update abgeschlossen. Anwendung wird neu gestartet...';
+			
+			return true;
+		} catch (error) {
+			console.error('Failed to install update:', error);
+			isUpdating = false;
+			return false;
+		}
+	}
 
 	onMount(() => {
-		if (!error) {
-			progressInterval = setInterval(() => {
-				if (progress < 100) {
-					progress += Math.random() * 15 + 5; // Random increment between 5-20
-					if (progress > 100) progress = 100;
+		// Async logic in separate function
+		async function handleMount() {
+			if (!error) {
+				// First check for updates
+				const updateInfo = await checkForUpdates();
+				
+				if (updateInfo?.available) {
+					console.log(`Update available: ${updateInfo.version}`);
+					currentMessage = `Update ${updateInfo.version} verfügbar. Installation wird gestartet...`;
+					
+					// Wait a moment to show the message
+					await new Promise(resolve => setTimeout(resolve, 1000));
+					
+					// Install update automatically
+					const updateSuccess = await installUpdate();
+					
+					if (!updateSuccess) {
+						// If update failed, continue with normal loading
+						currentMessage = message;
+						startNormalLoading();
+					}
+					// If update succeeded, the app will restart automatically
+				} else {
+					// No update available, continue with normal loading
+					currentMessage = message;
+					startNormalLoading();
 				}
-			}, 200);
+			}
 		}
-
+		
+		// Execute async logic
+		handleMount();
+		
+		// Return cleanup function synchronously
 		return () => {
 			if (progressInterval) clearInterval(progressInterval);
 		};
 	});
+
+	function startNormalLoading() {
+		if (!isUpdating) {
+			progressInterval = setInterval(() => {
+				if (progress < 100) {
+					progress += Math.random() * 15 + 5;
+					if (progress > 100) progress = 100;
+				}
+			}, 200);
+		}
+	}
 </script>
 
 <div class="flex h-screen w-full items-center justify-center bg-background">
@@ -50,8 +134,24 @@
 				{/if}
 			</div>
 		{:else}
-			<!-- Simple Loading State -->
+			<!-- Loading/Update State -->
 			<div class="text-center space-y-6">
+				{#if isUpdating}
+					<!-- Update Icon -->
+					<div class="text-primary">
+						<svg class="w-16 h-16 mx-auto mb-4 animate-spin" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+							<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"></path>
+						</svg>
+					</div>
+				{:else}
+					<!-- Loading Icon -->
+					<div class="text-primary">
+						<svg class="w-16 h-16 mx-auto mb-4 animate-pulse" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+							<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 3v1m0 16v1m9-9h-1M4 12H3m15.364 6.364l-.707-.707M6.343 6.343l-.707-.707m12.728 0l-.707.707M6.343 17.657l-.707.707"></path>
+						</svg>
+					</div>
+				{/if}
+				
 				<!-- Progress Bar -->
 				<div class="w-full bg-muted rounded-full h-3 overflow-hidden">
 					<div 
@@ -61,7 +161,11 @@
 				</div>
 				
 				<!-- Loading Text -->
-				<p class="text-muted-foreground text-lg">Daten werden geladen...</p>
+				<p class="text-muted-foreground text-lg">{currentMessage}</p>
+				
+				{#if isUpdating}
+					<p class="text-muted-foreground text-sm">Bitte schließen Sie die Anwendung nicht während des Updates.</p>
+				{/if}
 			</div>
 		{/if}
 	</div>

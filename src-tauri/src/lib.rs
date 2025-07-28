@@ -1,23 +1,24 @@
 mod commands;
 use commands::app_data::{
-    add_reminder, delete_reminder, get_setting, load_reminders, load_settings, save_reminders,
-    save_settings, update_reminder, update_reminder_last_notified, update_setting,
+    add_reminder, delete_reminder, load_reminders, save_reminders, update_reminder,
+    update_reminder_last_notified, load_settings, save_settings, update_setting, get_setting,
 };
 use commands::default::{read, write};
 use commands::notifications::{request_permission, send_notification};
 use commands::system_info::get_system_info;
 use commands::tray::{handle_window_event, hide_window, quit_app, setup_system_tray, show_window};
+use commands::updater::{check_for_updates, install_update, check_and_install_update};
 use tauri::Manager;
 
 #[allow(clippy::missing_panics_doc)]
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     tauri::Builder::default()
-        .plugin(tauri_plugin_updater::Builder::new().build())
         .plugin(tauri_plugin_autostart::init(
             tauri_plugin_autostart::MacosLauncher::LaunchAgent,
-            None,
+            None
         ))
+        .plugin(tauri_plugin_updater::Builder::new().build())
         .setup(|app| {
             if cfg!(debug_assertions) {
                 app.handle().plugin(
@@ -115,7 +116,10 @@ pub fn run() {
             get_system_info,
             show_window,
             hide_window,
-            quit_app
+            quit_app,
+            check_for_updates,
+            install_update,
+            check_and_install_update
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
