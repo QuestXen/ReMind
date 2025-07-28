@@ -11,9 +11,11 @@ export interface Reminder {
 	interval: ReminderInterval;
 	intervalValue: number;
 	specificDate?: string;
+	specificTime?: string;
 	color: ReminderColor;
 	createdAt: string;
 	lastNotified?: string;
+	active: boolean;
 }
 
 export interface AppSettings {

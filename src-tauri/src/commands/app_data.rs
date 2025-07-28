@@ -12,9 +12,47 @@ pub struct Reminder {
     pub interval: String,
     pub interval_value: u32,
     pub specific_date: Option<String>,
+    pub specific_time: Option<String>,
     pub color: String,
     pub created_at: String,
     pub last_notified: Option<String>,
+    pub active: bool,
+}
+
+// Legacy reminder structure for migration support
+#[derive(Debug, Clone, Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct LegacyReminder {
+    pub id: String,
+    pub name: String,
+    pub interval: String,
+    pub interval_value: u32,
+    pub specific_date: Option<String>,
+    pub specific_time: Option<String>,
+    pub color: String,
+    pub created_at: String,
+    pub last_notified: Option<String>,
+    // active field is optional for migration
+    pub active: Option<bool>,
+}
+
+// Convert legacy reminder to current reminder with default values
+impl From<LegacyReminder> for Reminder {
+    fn from(legacy: LegacyReminder) -> Self {
+        Self {
+            id: legacy.id,
+            name: legacy.name,
+            interval: legacy.interval,
+            interval_value: legacy.interval_value,
+            specific_date: legacy.specific_date,
+            specific_time: legacy.specific_time,
+            color: legacy.color,
+            created_at: legacy.created_at,
+            last_notified: legacy.last_notified,
+            // Default to true for existing reminders
+            active: legacy.active.unwrap_or(true),
+        }
+    }
 }
 
 use serde_json::{Map, Value};
@@ -64,10 +102,62 @@ fn load_app_data(app: &AppHandle) -> Result<AppData, Error> {
         return Ok(AppData::default());
     }
 
-    let json_data = fs::read_to_string(file_path)?;
-    let app_data: AppData = serde_json::from_str(&json_data)
-        .map_err(|e| Error::Io(std::io::Error::new(std::io::ErrorKind::Other, e)))?;
+    let json_data = fs::read_to_string(&file_path)?;
+    
+    // Try to load as current format first
+    if let Ok(app_data) = serde_json::from_str::<AppData>(&json_data) {
+        return Ok(app_data);
+    }
+    
+    // If that fails, try migration from legacy format
+    match migrate_app_data(&json_data) {
+        Ok(migrated_data) => {
+            // Save the migrated data back to file
+            save_app_data(app, &migrated_data)?;
+            println!("Successfully migrated app data to current format");
+            Ok(migrated_data)
+        }
+        Err(e) => {
+            println!("Failed to migrate app data: {}", e);
+            // If migration fails, return default data
+            Ok(AppData::default())
+        }
+    }
+}
 
+// Migration function to handle legacy data formats
+fn migrate_app_data(json_data: &str) -> Result<AppData, Error> {
+    // Parse as Value first to handle partial structures
+    let mut data: serde_json::Value = serde_json::from_str(json_data)
+        .map_err(|e| Error::Io(std::io::Error::new(std::io::ErrorKind::Other, e)))?;
+    
+    // Migrate reminders if they exist
+    if let Some(reminders_value) = data.get_mut("reminders") {
+        if let Some(reminders_array) = reminders_value.as_array_mut() {
+            for reminder_value in reminders_array {
+                // Add missing fields with default values
+                if let Some(reminder_obj) = reminder_value.as_object_mut() {
+                    // Add 'active' field if missing (default to true)
+                    if !reminder_obj.contains_key("active") {
+                        reminder_obj.insert("active".to_string(), serde_json::Value::Bool(true));
+                    }
+                    
+                    // Add other future fields here as needed
+                    // Example: if !reminder_obj.contains_key("newField") { ... }
+                }
+            }
+        }
+    }
+    
+    // Ensure settings exist
+    if !data.as_object().unwrap().contains_key("settings") {
+        data.as_object_mut().unwrap().insert("settings".to_string(), serde_json::to_value(default_settings()).unwrap());
+    }
+    
+    // Parse the migrated data as AppData
+    let app_data: AppData = serde_json::from_value(data)
+        .map_err(|e| Error::Io(std::io::Error::new(std::io::ErrorKind::Other, e)))?;
+    
     Ok(app_data)
 }
 

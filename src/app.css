@@ -269,4 +269,65 @@
 			opacity: 0.5;
 		}
 	}
+
+	@keyframes slide-up-staggered {
+		from {
+			opacity: 0;
+			transform: translateY(20px);
+		}
+		to {
+			opacity: 1;
+			transform: translateY(0);
+		}
+	}
+
+	.animate-slide-up-staggered {
+		animation: slide-up-staggered 0.6s ease-out forwards;
+		opacity: 0;
+	}
+
+	@keyframes fade-in {
+		from {
+			opacity: 0;
+			transform: translateY(10px);
+		}
+		to {
+			opacity: 1;
+			transform: translateY(0);
+		}
+	}
+
+	.animate-fade-in {
+		animation: fade-in 0.4s ease-out forwards;
+	}
+
+	/* Smooth grid layout transitions */
+	.grid {
+		display: grid;
+		transition: all 0.8s cubic-bezier(0.25, 0.46, 0.45, 0.94);
+	}
+
+	/* Prevent layout shift during card height changes */
+	.grid > * {
+		transition: all 0.8s cubic-bezier(0.25, 0.46, 0.45, 0.94);
+		transform-origin: center top;
+	}
+
+	/* Custom cubic-bezier for smooth animations */
+	.cubic-bezier\(0\.25\,\ 0\.46\,\ 0\.45\,\ 0\.94\) {
+		transition-timing-function: cubic-bezier(0.25, 0.46, 0.45, 0.94) !important;
+	}
+
+	/* Ensure smooth height transitions for all elements */
+	* {
+		box-sizing: border-box;
+	}
+
+	/* Better transition for height changes */
+	[style*="max-height"] {
+		transition: max-height 0.8s cubic-bezier(0.25, 0.46, 0.45, 0.94), 
+					opacity 0.8s cubic-bezier(0.25, 0.46, 0.45, 0.94),
+					padding 0.8s cubic-bezier(0.25, 0.46, 0.45, 0.94),
+					margin 0.8s cubic-bezier(0.25, 0.46, 0.45, 0.94) !important;
+	}
 }
