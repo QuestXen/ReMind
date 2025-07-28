@@ -12,7 +12,7 @@
 
 	let progress = $state(0);
 	let progressInterval: NodeJS.Timeout;
-	let currentMessage = $state(message);
+	let currentMessage = $state('Update Checken...');
 	let isUpdating = $state(false);
 
 	interface UpdateInfo {
@@ -24,7 +24,7 @@
 
 	async function checkForUpdates(): Promise<UpdateInfo | null> {
 		try {
-			currentMessage = 'Suche nach Updates...';
+			currentMessage = 'Update Checken...';
 			const updateInfo = await invoke<UpdateInfo>('check_for_updates');
 			return updateInfo;
 		} catch (error) {
@@ -79,13 +79,13 @@
 					
 					if (!updateSuccess) {
 						// If update failed, continue with normal loading
-						currentMessage = message;
+						currentMessage = 'Lade Daten...';
 						startNormalLoading();
 					}
 					// If update succeeded, the app will restart automatically
 				} else {
 					// No update available, continue with normal loading
-					currentMessage = message;
+					currentMessage = 'Lade Daten...';
 					startNormalLoading();
 				}
 			}

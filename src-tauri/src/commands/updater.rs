@@ -1,6 +1,5 @@
-use super::errors::Error;
 use serde::{Deserialize, Serialize};
-use tauri::{AppHandle, Manager};
+use tauri::AppHandle;
 use tauri_plugin_updater::UpdaterExt;
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -15,7 +14,7 @@ pub struct UpdateInfo {
 #[tauri::command]
 pub async fn check_for_updates(app: AppHandle) -> Result<UpdateInfo, String> {
     match app.updater() {
-        Some(updater) => {
+        Ok(updater) => {
             match updater.check().await {
                 Ok(update) => {
                     if let Some(update) = update {
@@ -23,7 +22,7 @@ pub async fn check_for_updates(app: AppHandle) -> Result<UpdateInfo, String> {
                             available: true,
                             version: Some(update.version),
                             notes: update.body,
-                            pub_date: update.date.map(|d| d.to_rfc3339()),
+                            pub_date: update.date.map(|d| d.to_string()),
                         })
                     } else {
                         Ok(UpdateInfo {
@@ -40,14 +39,17 @@ pub async fn check_for_updates(app: AppHandle) -> Result<UpdateInfo, String> {
                 }
             }
         }
-        None => Err("Updater not available".to_string()),
+        Err(e) => {
+            log::error!("Updater not available: {}", e);
+            Err(format!("Updater not available: {}", e))
+        }
     }
 }
 
 #[tauri::command]
 pub async fn install_update(app: AppHandle) -> Result<(), String> {
     match app.updater() {
-        Some(updater) => {
+        Ok(updater) => {
             match updater.check().await {
                 Ok(update) => {
                     if let Some(update) = update {
@@ -55,7 +57,7 @@ pub async fn install_update(app: AppHandle) -> Result<(), String> {
                         
                         // Download and install update
                         match update.download_and_install(|chunk_length, content_length| {
-                            let progress = chunk_length as f64 / content_length.unwrap_or(chunk_length) as f64 * 100.0;
+                            let progress = chunk_length as f64 / content_length.unwrap_or(chunk_length as u64) as f64 * 100.0;
                             log::info!("Download progress: {:.1}%", progress);
                         }, || {
                             log::info!("Download completed, installing...");
@@ -80,7 +82,10 @@ pub async fn install_update(app: AppHandle) -> Result<(), String> {
                 }
             }
         }
-        None => Err("Updater not available".to_string()),
+        Err(e) => {
+            log::error!("Updater not available: {}", e);
+            Err(format!("Updater not available: {}", e))
+        }
     }
 }
 
