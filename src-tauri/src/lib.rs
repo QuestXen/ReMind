@@ -1,7 +1,7 @@
 mod commands;
 use commands::app_data::{
     add_reminder, delete_reminder, load_reminders, save_reminders, update_reminder,
-    update_reminder_last_notified, load_settings, save_settings, update_autostart_setting, get_autostart_setting,
+    update_reminder_last_notified, load_settings, save_settings, update_setting, get_setting,
 };
 use commands::default::{read, write};
 use commands::notifications::{request_permission, send_notification};
@@ -109,8 +109,8 @@ pub fn run() {
             update_reminder_last_notified,
             load_settings,
             save_settings,
-            update_autostart_setting,
-            get_autostart_setting,
+            update_setting,
+            get_setting,
             get_system_info,
             show_window,
             hide_window,

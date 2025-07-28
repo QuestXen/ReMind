@@ -17,21 +17,17 @@ pub struct Reminder {
     pub last_notified: Option<String>,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
-pub struct AppSettings {
-    pub autostart_enabled: bool,
-    pub theme: Option<String>,
-    pub notification_sound: bool,
-}
+use serde_json::{Map, Value};
+
+pub type AppSettings = Map<String, Value>;
 
 impl Default for AppSettings {
     fn default() -> Self {
-        Self {
-            autostart_enabled: false,
-            theme: None,
-            notification_sound: true,
-        }
+        let mut map = Map::new();
+        map.insert("autostart_enabled".to_string(), Value::Bool(false));
+        map.insert("theme".to_string(), Value::Null);
+        map.insert("notification_sound".to_string(), Value::Bool(true));
+        map
     }
 }
 
@@ -139,37 +135,28 @@ pub fn update_reminder_last_notified(
 // Settings commands
 #[tauri::command]
 pub fn save_settings(app: AppHandle, settings: AppSettings) -> Result<(), Error> {
-    println!("[Backend] Saving settings: {:?}", settings);
     let mut app_data = load_app_data(&app).unwrap_or_default();
-    app_data.settings = settings.clone();
+    app_data.settings = settings;
     save_app_data(&app, &app_data)?;
-    println!("[Backend] Settings saved successfully");
     Ok(())
 }
 
 #[tauri::command]
 pub fn load_settings(app: AppHandle) -> AppSettings {
-    println!("[Backend] Loading settings...");
     let app_data = load_app_data(&app).unwrap_or_default();
-    println!("[Backend] Loaded settings: {:?}", app_data.settings);
     app_data.settings
 }
 
 #[tauri::command]
-pub fn update_autostart_setting(app: AppHandle, enabled: bool) -> Result<(), Error> {
-    println!("[Backend] Updating autostart setting to: {}", enabled);
+pub fn update_setting(app: AppHandle, key: String, value: Value) -> Result<(), Error> {
     let mut app_data = load_app_data(&app).unwrap_or_default();
-    app_data.settings.autostart_enabled = enabled;
+    app_data.settings.insert(key, value);
     save_app_data(&app, &app_data)?;
-    println!("[Backend] Autostart setting updated successfully");
     Ok(())
 }
 
 #[tauri::command]
-pub fn get_autostart_setting(app: AppHandle) -> bool {
-    println!("[Backend] Getting autostart setting...");
+pub fn get_setting(app: AppHandle, key: String) -> Option<Value> {
     let app_data = load_app_data(&app).unwrap_or_default();
-    let enabled = app_data.settings.autostart_enabled;
-    println!("[Backend] Autostart setting: {}", enabled);
-    enabled
+    app_data.settings.get(&key).cloned()
 }
