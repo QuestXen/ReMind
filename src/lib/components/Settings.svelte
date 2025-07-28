@@ -6,6 +6,7 @@
 	import { enable, disable, isEnabled } from '@tauri-apps/plugin-autostart';
 	import { invoke } from '@tauri-apps/api/core';
 	import TitleBar from './TitleBar.svelte';
+	import { settings, updateSetting } from '$lib/stores';
 
 	interface SystemInfo {
 		app_version: string;
@@ -16,8 +17,7 @@
 
 	const dispatch = createEventDispatcher<{ close: void }>();
 
-	let autostartEnabled = $state(false);
-	let loading = $state(true);
+	let loading = $state(false);
 	let updating = $state(false);
 	let systemInfo = $state<SystemInfo | null>(null);
 
@@ -26,49 +26,11 @@
 	}
 
 
-	async function loadAutostartSetting() {
-		try {
-			console.log('[Frontend] Loading autostart setting...');
-			loading = true;
-			
 
-			const savedSetting = await invoke<boolean>('get_autostart_setting');
-			console.log('[Frontend] Saved autostart setting:', savedSetting);
-			
-
-			const systemEnabled = await isEnabled();
-			console.log('[Frontend] System autostart enabled:', systemEnabled);
-			
-
-			autostartEnabled = savedSetting;
-			
-
-			if (systemEnabled !== savedSetting) {
-				console.log('[Frontend] Syncing system with saved setting...');
-				if (savedSetting) {
-					await enable();
-					console.log('[Frontend] Autostart enabled in system');
-				} else {
-					await disable();
-					console.log('[Frontend] Autostart disabled in system');
-				}
-			}
-		} catch (error) {
-			console.error('[Frontend] Failed to load autostart setting:', error);
-			try {
-				autostartEnabled = await isEnabled();
-			} catch (fallbackError) {
-				console.error('[Frontend] Fallback failed:', fallbackError);
-				autostartEnabled = false;
-			}
-		} finally {
-			loading = false;
-		}
-	}
 
 	async function toggleAutostart(checked: boolean) {
-		if (loading || updating) {
-			console.log('[Frontend] Ignoring toggle - loading or updating');
+		if (updating) {
+			console.log('[Frontend] Ignoring toggle - updating');
 			return;
 		}
 		
@@ -76,7 +38,8 @@
 			console.log('[Frontend] Toggling autostart to:', checked);
 			updating = true;
 			
-			autostartEnabled = checked;
+			// Update store immediately for responsive UI
+			updateSetting('autostartEnabled', checked);
 			
 			if (checked) {
 				await enable();
@@ -86,12 +49,17 @@
 				console.log('[Frontend] Autostart disabled in system');
 			}
 			
-			await invoke('update_autostart_setting', { enabled: checked });
+			// Save to backend using new generic function
+			await invoke('update_setting', { 
+				key: 'autostartEnabled', 
+				value: checked 
+			});
 			console.log('[Frontend] Autostart setting saved to backend');
 			
 		} catch (error) {
 			console.error('[Frontend] Failed to toggle autostart:', error);
-			autostartEnabled = !checked;
+			// Revert store on error
+			updateSetting('autostartEnabled', !checked);
 			console.log('[Frontend] Reverted autostart setting due to error');
 		} finally {
 			updating = false;
@@ -108,7 +76,6 @@
 	}
 
 	onMount(() => {
-		loadAutostartSetting();
 		loadSystemInfo();
 	});
 </script>
@@ -146,10 +113,10 @@
 									<div class="animate-spin rounded-full h-5 w-5 border-b-2 border-primary"></div>
 								{:else}
 									<Switch 
-										bind:checked={autostartEnabled} 
-										disabled={loading || updating}
-										onCheckedChange={toggleAutostart}
-									/>
+								bind:checked={$settings.autostartEnabled} 
+								disabled={updating}
+								onCheckedChange={toggleAutostart}
+							/>
 								{/if}
 							</div>
 						</div>

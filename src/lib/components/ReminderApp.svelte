@@ -7,28 +7,13 @@
 	import { onMount, onDestroy } from 'svelte';
 	import SettingsComponent from './Settings.svelte';
 	import TitleBar from './TitleBar.svelte';
-
-	
-
-	type ReminderInterval = 'minutes' | 'hours' | 'days' | 'weeks' | 'months' | 'specific';
-	type ReminderColor = 'blue' | 'green' | 'purple' | 'red' | 'orange' | 'pink';
-
-	interface Reminder {
-		id: string;
-		name: string;
-		interval: ReminderInterval;
-		intervalValue: number;
-		specificDate?: string;
-		color: ReminderColor;
-		createdAt: string;
-		lastNotified?: string;
-	}
+	import { reminders, addReminder, updateReminder as updateReminderStore, deleteReminderFromStore } from '$lib/stores';
+	import type { Reminder, ReminderInterval, ReminderColor } from '$lib/stores';
 
 	let showCreateForm = $state(false);
 	let showEditForm = $state(false);
 	let showSettings = $state(false);
 	let editingReminder = $state<Reminder | null>(null);
-	let reminders = $state<Reminder[]>([]);
 	let newReminder = $state({
 		name: '',
 		interval: 'days' as ReminderInterval,
@@ -78,7 +63,7 @@
 		
 		try {
 			await invoke('add_reminder', { reminder });
-			reminders = [...reminders, reminder];
+			addReminder(reminder);
 			resetForm();
 			showCreateForm = false;
 			setTimeout(() => {
@@ -119,13 +104,8 @@
 		try {
 			await invoke('update_reminder', { reminder: editingReminder });
 			
-			const index = reminders.findIndex(r => r.id === editingReminder!.id);
-			if (index !== -1) {
-				reminders[index] = editingReminder;
-				reminders = reminders;
-				
-				startReminderTimer(editingReminder!);
-			}
+			updateReminderStore(editingReminder);
+			startReminderTimer(editingReminder);
 			
 			const updatedReminderName = editingReminder.name;
 			showEditForm = false;
@@ -157,24 +137,14 @@
 		
 		try {
 			await invoke('delete_reminder', { reminderId: id });
-			reminders = reminders.filter(r => r.id !== id);
+			deleteReminderFromStore(id);
 			console.log(`Deleted reminder with ID: ${id}`);
 		} catch (error) {
 			console.error('Failed to delete reminder:', error);
 		}
 	}
 
-	async function loadReminders() {
-		try {
-			reminders = await invoke<Reminder[]>('load_reminders');
-			
-			reminders.forEach(reminder => {
-				startReminderTimer(reminder);
-			});
-		} catch (error) {
-			console.error('Failed to load reminders:', error);
-		}
-	}
+
 
 	function startReminderTimer(reminder: Reminder) {
 		clearReminderTimer(reminder.id);
@@ -322,7 +292,7 @@
 		const status = {
 			activeTimers: reminderTimers.size,
 			timers: Array.from(reminderTimers.entries()).map(([id, timerInfo]) => {
-				const reminder = reminders.find(r => r.id === id);
+				const reminder = $reminders.find(r => r.id === id);
 				return {
 					id,
 					name: reminder?.name || 'Unknown',
@@ -349,25 +319,30 @@
 }
 
 onMount(() => {
-	loadReminders().then(() => {
-		reminders.forEach(reminder => {
+	// Start timers for existing reminders from store
+	const unsubscribe = reminders.subscribe(currentReminders => {
+		// Clear existing timers
+		clearAllTimers();
+		
+		// Start timers for all current reminders
+		currentReminders.forEach(reminder => {
 			startReminderTimer(reminder);
 		});
 		
-		timerCleanupInterval = setInterval(() => {
-			const now = new Date();
-			reminderTimers.forEach((timerInfo, id) => {
-				if (timerInfo.nextExecution <= now && !timerInfo.isActive) {
-					clearReminderTimer(id);
-				}
-			});
-		}, 5 * 60 * 1000);
-		
-		console.log(`Initialized ${reminders.length} reminders with timers`);
-	}).catch(error => {
-		console.error('Failed to initialize reminders:', error);
+		console.log(`Initialized ${currentReminders.length} reminders with timers`);
 	});
 	
+	// Setup timer cleanup interval
+	timerCleanupInterval = setInterval(() => {
+		const now = new Date();
+		reminderTimers.forEach((timerInfo, id) => {
+			if (timerInfo.nextExecution <= now && !timerInfo.isActive) {
+				clearReminderTimer(id);
+			}
+		});
+	}, 5 * 60 * 1000);
+	
+	// Handle dropdown clicks
 	const handleClickOutside = (event: MouseEvent) => {
 		const editDropdown = document.getElementById('edit-interval-dropdown');
 		const newDropdown = document.getElementById('new-interval-dropdown');
@@ -384,6 +359,7 @@ onMount(() => {
 	document.addEventListener('click', handleClickOutside);
 	
 	return () => {
+		unsubscribe();
 		document.removeEventListener('click', handleClickOutside);
 	};
 });
@@ -775,7 +751,7 @@ onDestroy(() => {
 	{/if}
 
 	<div class="grid gap-6">
-		{#if reminders.length === 0}
+		{#if $reminders.length === 0}
 			<Card class="bg-card border border-border shadow-lg rounded-3xl overflow-hidden animate-slide-up-staggered">
 				<Content class="text-center py-16">
 					<h3 class="text-2xl text-heading text-card-foreground mb-3">Noch keine Erinnerungen</h3>
@@ -783,7 +759,7 @@ onDestroy(() => {
 				</Content>
 			</Card>
 		{:else}
-			{#each reminders as reminder, index (reminder.id)}
+			{#each $reminders as reminder, index (reminder.id)}
 			<Card id={`reminder-${reminder.id}`} class="bg-card border border-border shadow-lg hover:shadow-xl rounded-3xl overflow-hidden transition-all duration-300 group hover:scale-[1.02] animate-slide-up-staggered" style="animation-delay: {index * 0.1}s;">
 					<Content class="p-8">
 						<div class="flex items-center justify-between">

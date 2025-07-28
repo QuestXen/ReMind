@@ -21,21 +21,28 @@ use serde_json::{Map, Value};
 
 pub type AppSettings = Map<String, Value>;
 
-impl Default for AppSettings {
-    fn default() -> Self {
-        let mut map = Map::new();
-        map.insert("autostart_enabled".to_string(), Value::Bool(false));
-        map.insert("theme".to_string(), Value::Null);
-        map.insert("notification_sound".to_string(), Value::Bool(true));
-        map
-    }
+fn default_settings() -> AppSettings {
+    let mut map = Map::new();
+    map.insert("autostartEnabled".to_string(), Value::Bool(false));
+    map.insert("theme".to_string(), Value::Null);
+    map.insert("notificationSound".to_string(), Value::Bool(true));
+    map
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize, Default)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct AppData {
     pub reminders: Vec<Reminder>,
     pub settings: AppSettings,
+}
+
+impl Default for AppData {
+    fn default() -> Self {
+        Self {
+            reminders: Vec::new(),
+            settings: default_settings(),
+        }
+    }
 }
 
 fn get_app_data_file_path(app: &AppHandle) -> Result<PathBuf, Error> {
@@ -150,7 +157,7 @@ pub fn load_settings(app: AppHandle) -> AppSettings {
 #[tauri::command]
 pub fn update_setting(app: AppHandle, key: String, value: Value) -> Result<(), Error> {
     let mut app_data = load_app_data(&app).unwrap_or_default();
-    app_data.settings.insert(key, value);
+    app_data.settings.insert(key.clone(), value.clone());
     save_app_data(&app, &app_data)?;
     Ok(())
 }

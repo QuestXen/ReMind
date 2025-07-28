@@ -15,6 +15,7 @@
     "format": "prettier --write .",
     "lint": "prettier --check . && eslint .",
     "set-version": "node scripts/update-version.cjs",
+    "release": "node scripts/release.cjs",
     "tauri": "tauri"
   },
   "devDependencies": {
