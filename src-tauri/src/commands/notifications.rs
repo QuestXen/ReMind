@@ -27,17 +27,23 @@ pub fn send_notification_with_sound(app: tauri::AppHandle, title: String, body: 
         // Fallback: Play Windows notification sound manually
         #[cfg(target_os = "windows")]
         {
+            use std::os::windows::process::CommandExt;
+            const CREATE_NO_WINDOW: u32 = 0x08000000;
+            
             // Try multiple methods to ensure sound plays
             let _ = Command::new("powershell")
                 .args([
+                    "-WindowStyle", "Hidden",
                     "-c",
                     "[System.Media.SystemSounds]::Notification.Play()"
                 ])
+                .creation_flags(CREATE_NO_WINDOW)
                 .output();
             
             // Alternative method using rundll32
             let _ = Command::new("rundll32")
                 .args(["user32.dll,MessageBeep", "0"])
+                .creation_flags(CREATE_NO_WINDOW)
                 .output();
         }
     }
@@ -64,16 +70,22 @@ pub fn send_reminder_notification(app: tauri::AppHandle, title: String, body: St
         // Ensure Windows notification sound plays
         #[cfg(target_os = "windows")]
         {
+            use std::os::windows::process::CommandExt;
+            const CREATE_NO_WINDOW: u32 = 0x08000000;
+            
             // Play system notification sound using multiple methods
             let _ = Command::new("powershell")
                 .args([
+                    "-WindowStyle", "Hidden",
                     "-c",
                     "[System.Media.SystemSounds]::Notification.Play()"
                 ])
+                .creation_flags(CREATE_NO_WINDOW)
                 .output();
             
             let _ = Command::new("rundll32")
                 .args(["user32.dll,MessageBeep", "0"])
+                .creation_flags(CREATE_NO_WINDOW)
                 .output();
         }
     }

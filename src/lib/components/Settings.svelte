@@ -157,7 +157,7 @@
 						<div class="flex items-center justify-between">
 							<div class="space-y-1">
 								<h3 class="text-heading text-card-foreground text-lg">Benachrichtigungssound</h3>
-								<p class="text-muted-foreground text-body text-sm">Windows-Systemsound bei Benachrichtigungen abspielen (standardmäßig aktiviert)</p>
+								<p class="text-muted-foreground text-body text-sm">Windows-Systemsound bei Benachrichtigungen abspielen</p>
 							</div>
 							<div class="flex items-center">
 								{#if loading}
