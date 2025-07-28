@@ -5,9 +5,10 @@
 		title: string;
 		icon: string;
 		showWindowControls?: boolean;
+		useLogoIcon?: boolean;
 	}
 
-	let { title, icon, showWindowControls = true }: Props = $props();
+	let { title, icon, showWindowControls = true, useLogoIcon = false }: Props = $props();
 
 	let appWindow: any = null;
 	try {
@@ -31,8 +32,12 @@
 >
 
 	<div class="flex items-center gap-3">
-		<div class="bg-primary flex h-6 w-6 items-center justify-center rounded-full">
-			<span class="text-primary-foreground text-xs font-bold">{icon}</span>
+		<div class="bg-background flex h-6 w-6 items-center justify-center rounded-full overflow-hidden">
+			{#if useLogoIcon}
+				<img src="./static/logo-transparent2.png" alt="ReMind Logo" class="h-6 w-6 object-cover rounded-full" />
+			{:else}
+				<span class="text-primary-foreground text-xs font-bold">{icon}</span>
+			{/if}
 		</div>
 		<span class="text-foreground font-medium">{title}</span>
 	</div>

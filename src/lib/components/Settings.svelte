@@ -107,7 +107,7 @@
 </script>
 
 <div class="flex h-screen flex-col overflow-hidden">
-	<TitleBar title="Einstellungen" icon="S" />
+	<TitleBar title="Einstellungen" icon="S" useLogoIcon={true} />
 
 	<div class="bg-background animate-slide-in-right flex-1 overflow-y-auto relative">
 		<div class="p-4">
