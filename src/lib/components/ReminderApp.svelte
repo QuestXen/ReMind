@@ -879,7 +879,7 @@ onDestroy(() => {
 		color: hsl(var(--accent-foreground)) !important;
 	}
 
-	/* Additional fallback selectors for any select within calendar */
+
 	:global([data-bits-calendar-root] select),
 	:global([data-calendar-root] select) {
 		background-color: hsl(var(--background)) !important;
@@ -896,7 +896,6 @@ onDestroy(() => {
 		-moz-appearance: none !important;
 	}
 
-	/* Calendar container styling */
 	:global([data-bits-calendar-root]) {
 		border-radius: 0.75rem !important;
 		border: 1px solid hsl(var(--border)) !important;
@@ -1162,7 +1161,6 @@ onDestroy(() => {
 							{/if}
 						{/each}
 						
-						<!-- Custom Color Picker Button -->
 							{#if showEditForm}
 								<Popover.Root bind:open={showEditColorPicker}>
 									<Popover.Trigger>
@@ -1263,13 +1261,11 @@ onDestroy(() => {
 					</Button>
 					<Button 
 						onclick={() => {
-			// Add closing animation to form container
 			const formContainer = document.querySelector('.form-container');
 			if (formContainer) {
 				formContainer.classList.add('closing');
 			}
 			
-			// Close form after animation
 			setTimeout(() => {
 				showCreateForm = false;
 				showEditForm = false;
@@ -1277,7 +1273,6 @@ onDestroy(() => {
 				cancelEdit();
 			}, 600);
 			
-			// Smooth scroll to top with CSS scroll-behavior
 			setTimeout(() => {
 				const contentScroll = document.getElementById('content-scroll');
 				if (contentScroll) {
@@ -1327,7 +1322,6 @@ onDestroy(() => {
 										<span class="truncate">{formatReminderInfo(reminder)}</span>
 									</div>
 									
-									<!-- Next reminder info with smooth height transition -->
 									<div class="overflow-hidden transition-all duration-800" style="max-height: {getTimeUntilNextReminder(reminder) && reminder.active ? '80px' : '0px'}; padding-top: {getTimeUntilNextReminder(reminder) && reminder.active ? '8px' : '0px'}; margin-top: {getTimeUntilNextReminder(reminder) && reminder.active ? '8px' : '0px'}; transition-timing-function: cubic-bezier(0.25, 0.46, 0.45, 0.94);">
 										<div class="flex items-start gap-2 text-sm text-muted-foreground pt-2 transition-opacity duration-800" style="opacity: {getTimeUntilNextReminder(reminder) && reminder.active ? '1' : '0'}; transition-timing-function: cubic-bezier(0.25, 0.46, 0.45, 0.94); transition-delay: {getTimeUntilNextReminder(reminder) && reminder.active ? '0ms' : '200ms'};">
 											<div class="w-2 h-2 bg-emerald-500 rounded-full flex-shrink-0 mt-2 animate-pulse"></div>
@@ -1348,7 +1342,6 @@ onDestroy(() => {
 							</div>
 						</div>
 							<div class="flex items-center gap-3">
-								<!-- Hover-only Edit and Delete Buttons -->
 								<div class="opacity-0 group-hover:opacity-100 transition-opacity flex items-center gap-2">
 									<Button 
 										onclick={() => startEditReminder(reminder)}
@@ -1366,9 +1359,7 @@ onDestroy(() => {
 									</Button>
 								</div>
 								
-								<!-- Permanent On/Off Toggle Button (rightmost) -->
 								<div class="relative">
-									<!-- Bottom glow effect -->
 									{#if reminder.active}
 										<div class="absolute -bottom-1 left-1/2 transform -translate-x-1/2 w-12 h-2 bg-emerald-400/30 rounded-full blur-sm"></div>
 									{/if}
@@ -1379,11 +1370,11 @@ onDestroy(() => {
 										title={reminder.active ? 'Aktiv - Klicken zum Deaktivieren' : 'Inaktiv - Klicken zum Aktivieren'}
 									>
 										<div class="relative w-8 h-4 transition-all duration-500">
-											<!-- Toggle Track -->
+					
 											<div class="absolute inset-0 rounded-full transition-all duration-500 {reminder.active ? 'bg-gradient-to-r from-emerald-400 to-green-500 shadow-inner' : 'bg-gradient-to-r from-slate-300 to-gray-400 shadow-inner'}"></div>
-											<!-- Toggle Circle -->
+										
 											<div class="absolute top-0.5 w-3 h-3 bg-white rounded-full shadow-lg transition-all duration-500 transform {reminder.active ? 'translate-x-4 shadow-emerald-300/50' : 'translate-x-0.5 shadow-slate-400/50'} group-hover/toggle:scale-110">
-												<!-- Inner glow effect -->
+										
 												<div class="absolute inset-0.5 rounded-full transition-all duration-500 {reminder.active ? 'bg-gradient-to-br from-emerald-200 to-green-300' : 'bg-gradient-to-br from-slate-200 to-gray-300'}"></div>
 											</div>
 										</div>

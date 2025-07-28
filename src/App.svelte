@@ -49,25 +49,22 @@
 			isLoading.set(true);
 			loadingError.set(null);
 
-			// Parallel loading of settings and reminders
 			const [loadedSettings, loadedReminders] = await Promise.all([
 				invoke<Record<string, any>>('load_settings'),
 				invoke<Reminder[]>('load_reminders')
 			]);
 			
-			// Convert loaded settings to AppSettings format
 			const appSettings: AppSettings = {
 				autostartEnabled: loadedSettings.autostart_enabled || false,
 				theme: loadedSettings.theme || null,
 				notificationSound: loadedSettings.notification_sound !== false,
-				...loadedSettings // Include any additional dynamic settings
+				...loadedSettings 
 			};
 
 			// Update stores
 			settings.set(appSettings);
 			reminders.set(loadedReminders);
 
-			// Small delay to show loading animation
 			await new Promise(resolve => setTimeout(resolve, 300));
 
 			isLoading.set(false);
@@ -97,27 +94,21 @@
 	}
 
 	onMount(async () => {
-		// First check for updates
 		const updateInfo = await checkForUpdates();
 		
 		if (updateInfo?.available) {
 			console.log(`Update available: ${updateInfo.version}`);
 			updateMessage = `Update ${updateInfo.version} verfügbar. Installation wird gestartet...`;
 			
-			// Wait a moment to show the message
 			await new Promise(resolve => setTimeout(resolve, 1000));
 			
-			// Install update automatically
 			const updateSuccess = await installUpdate();
 			
 			if (!updateSuccess) {
-				// If update failed, continue with normal loading
 				updateStatus = 'done';
 				loadAppData();
 			}
-			// If update succeeded, the app will restart automatically
 		} else {
-			// No update available, continue with normal loading
 			updateStatus = 'done';
 			loadAppData();
 		}

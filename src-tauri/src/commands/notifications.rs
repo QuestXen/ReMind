@@ -4,7 +4,6 @@ use super::app_data::get_setting;
 
 #[tauri::command]
 pub fn send_notification(app: tauri::AppHandle, title: String, body: String) -> Result<(), String> {
-    // Send notification with sound
     app.notification()
         .builder()
         .title(title)
@@ -21,16 +20,13 @@ pub fn send_notification_with_sound(app: tauri::AppHandle, title: String, body: 
     let mut builder = app.notification().builder().title(title).body(body);
     
     if play_sound {
-        // Set sound to default system notification sound
         builder = builder.sound("default".to_string());
         
-        // Fallback: Play Windows notification sound manually
         #[cfg(target_os = "windows")]
         {
             use std::os::windows::process::CommandExt;
             const CREATE_NO_WINDOW: u32 = 0x08000000;
             
-            // Try multiple methods to ensure sound plays
             let _ = Command::new("powershell")
                 .args([
                     "-WindowStyle", "Hidden",
@@ -40,7 +36,6 @@ pub fn send_notification_with_sound(app: tauri::AppHandle, title: String, body: 
                 .creation_flags(CREATE_NO_WINDOW)
                 .output();
             
-            // Alternative method using rundll32
             let _ = Command::new("rundll32")
                 .args(["user32.dll,MessageBeep", "0"])
                 .creation_flags(CREATE_NO_WINDOW)

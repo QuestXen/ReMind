@@ -14,7 +14,6 @@
 	let progressInterval: NodeJS.Timeout;
 
 	onMount(() => {
-		// Start progress animation
 		if (!error) {
 			progressInterval = setInterval(() => {
 				if (progress < 100) {
@@ -23,8 +22,7 @@
 				}
 			}, 100);
 		}
-		
-		// Return cleanup function
+
 		return () => {
 			if (progressInterval) clearInterval(progressInterval);
 		};
@@ -34,7 +32,6 @@
 <div class="flex h-screen w-full items-center justify-center bg-background">
 	<div class="w-full max-w-md mx-auto px-6">
 		{#if error}
-			<!-- Error State -->
 			<div class="text-center space-y-6">
 				<div class="text-destructive">
 					<svg class="w-16 h-16 mx-auto mb-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -53,33 +50,26 @@
 				{/if}
 			</div>
 		{:else}
-			<!-- Loading/Update State -->
 			<div class="text-center space-y-6">
 				{#if isUpdating}
-					<!-- Update Icon -->
 					<div class="text-primary">
 						<svg class="w-16 h-16 mx-auto mb-4 animate-spin" fill="none" stroke="currentColor" viewBox="0 0 24 24">
 							<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"></path>
 						</svg>
 					</div>
 				{:else}
-					<!-- Loading Icon -->
 					<div class="text-primary">
 						<svg class="w-16 h-16 mx-auto mb-4 animate-spin" fill="none" stroke="currentColor" viewBox="0 0 24 24">
 							<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 3v1m0 16v1m9-9h-1M4 12H3m15.364 6.364l-.707-.707M6.343 6.343l-.707-.707m12.728 0l-.707.707M6.343 17.657l-.707.707"></path>
 						</svg>
 					</div>
 				{/if}
-				
-				<!-- Progress Bar -->
 				<div class="w-full bg-muted rounded-full h-3 overflow-hidden">
 					<div 
 						class="h-full bg-gradient-to-r from-primary to-primary/80 rounded-full transition-all duration-300 ease-out"
 						style="width: {progress}%"
 					></div>
 				</div>
-				
-				<!-- Loading Text -->
 				<p class="text-muted-foreground text-lg">{message}</p>
 				
 				{#if isUpdating}

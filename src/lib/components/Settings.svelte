@@ -35,7 +35,7 @@
 			console.log('[Frontend] Toggling autostart to:', checked);
 			updating = true;
 			
-			// Update store immediately for responsive UI
+	
 			updateSetting('autostartEnabled', checked);
 			
 			if (checked) {
@@ -46,7 +46,7 @@
 				console.log('[Frontend] Autostart disabled in system');
 			}
 			
-			// Save to backend using new generic function
+		
 			await invoke('update_setting', { 
 				key: 'autostartEnabled', 
 				value: checked 
@@ -55,7 +55,7 @@
 			
 		} catch (error) {
 			console.error('[Frontend] Failed to toggle autostart:', error);
-			// Revert store on error
+	
 			updateSetting('autostartEnabled', !checked);
 			console.log('[Frontend] Reverted autostart setting due to error');
 		} finally {
@@ -73,10 +73,10 @@
 			console.log('[Frontend] Toggling notification sound to:', checked);
 			updating = true;
 			
-			// Update store immediately for responsive UI
+		
 			updateSetting('notificationSound', checked);
 			
-			// Save to backend
+		
 			await invoke('update_setting', { 
 				key: 'notificationSound', 
 				value: checked 
@@ -85,7 +85,6 @@
 			
 		} catch (error) {
 			console.error('[Frontend] Failed to toggle notification sound:', error);
-			// Revert store on error
 			updateSetting('notificationSound', !checked);
 			console.log('[Frontend] Reverted notification sound setting due to error');
 		} finally {
