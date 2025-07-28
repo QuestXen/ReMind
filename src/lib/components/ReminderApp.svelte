@@ -438,8 +438,13 @@
 			// Use timeUpdateTrigger to make this reactive
 			timeUpdateTrigger;
 			
+			// Check if reminder is active first
+			if (!reminder.active) {
+				return '';
+			}
+			
 			const timerInfo = reminderTimers.get(reminder.id);
-			if (!timerInfo || !timerInfo.isActive) {
+			if (!timerInfo) {
 				return '';
 			}
 
@@ -453,6 +458,7 @@
 			const days = Math.floor(timeUntil / (1000 * 60 * 60 * 24));
 			const hours = Math.floor((timeUntil % (1000 * 60 * 60 * 24)) / (1000 * 60 * 60));
 			const minutes = Math.floor((timeUntil % (1000 * 60 * 60)) / (1000 * 60));
+			const seconds = Math.floor((timeUntil % (1000 * 60)) / 1000);
 
 			if (days > 0) {
 				if (hours > 0) {
@@ -468,23 +474,31 @@
 				}
 			} else if (minutes > 0) {
 				return `in ${minutes} Minute${minutes > 1 ? 'n' : ''}`;
+			} else if (seconds > 0) {
+				return `in ${seconds} Sekunde${seconds > 1 ? 'n' : ''}`;
 			} else {
 				return 'in wenigen Sekunden';
 			}
 		}
 
 onMount(() => {
+		let isInitialLoad = true;
+		
 		// Start timers for existing reminders from store
 		const unsubscribe = reminders.subscribe(currentReminders => {
-			// Clear existing timers
-			clearAllTimers();
-			
-			// Start timers for all current reminders
-			currentReminders.forEach(reminder => {
-				startReminderTimer(reminder);
-			});
-			
-			console.log(`Initialized ${currentReminders.length} reminders with timers`);
+			if (isInitialLoad) {
+				// Only clear all timers on initial load
+				clearAllTimers();
+				
+				// Start timers for all current reminders
+				currentReminders.forEach(reminder => {
+					startReminderTimer(reminder);
+				});
+				
+				console.log(`Initialized ${currentReminders.length} reminders with timers`);
+				isInitialLoad = false;
+			}
+			// After initial load, timer management is handled by individual functions
 		});
 		
 		// Setup timer cleanup interval
@@ -500,7 +514,7 @@ onMount(() => {
 		// Setup time update interval for countdown display
 		timeUpdateInterval = setInterval(() => {
 			timeUpdateTrigger++; // Trigger reactivity
-		}, 30000); // Update every 30 seconds
+		}, 1000); // Update every second for accurate countdown
 		
 		return () => {
 			unsubscribe();
