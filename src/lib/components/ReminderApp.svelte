@@ -924,7 +924,7 @@ onDestroy(() => {
 	<SettingsComponent on:close={closeSettings} />
 {:else}
 <div class="flex flex-col h-screen overflow-hidden">
-	<TitleBar title="Re:Mind" icon="R" />
+	<TitleBar title="Re:Mind" icon="R" useLogoIcon={true} />
 
   <div id="content-scroll" class="flex-1 overflow-y-auto bg-background relative {showSettings ? 'animate-slide-out-left' : 'animate-slide-in-left'}">
 	<div class="p-6">

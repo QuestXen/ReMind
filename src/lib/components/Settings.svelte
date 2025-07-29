@@ -3,7 +3,7 @@
 	import { Switch } from '$lib/components/ui/switch/index';
 	import { ArrowLeft } from '@lucide/svelte';
 	import { createEventDispatcher, onMount } from 'svelte';
-	import { enable, disable, isEnabled } from '@tauri-apps/plugin-autostart';
+	import { enable, disable } from '@tauri-apps/plugin-autostart';
 	import { invoke } from '@tauri-apps/api/core';
 	import TitleBar from './TitleBar.svelte';
 	import { settings, updateSetting } from '$lib/stores';
@@ -107,7 +107,7 @@
 </script>
 
 <div class="flex h-screen flex-col overflow-hidden">
-	<TitleBar title="Einstellungen" icon="S" />
+	<TitleBar title="Einstellungen" icon="S" useLogoIcon={true} />
 
 	<div class="bg-background animate-slide-in-right flex-1 overflow-y-auto relative">
 		<div class="p-4">
@@ -181,13 +181,13 @@
 		<div class="bg-background border-t border-border px-6 py-3">
 			<div class="text-center space-y-1">
 				<p class="text-muted-foreground text-xs">
-					ReMind v{systemInfo.app_version} (Beta)
+					ReMind v{systemInfo.app_version}
 				</p>
 				<p class="text-muted-foreground text-xs">
 					{systemInfo.os_version} {systemInfo.arch}
 				</p>
 				<p class="text-muted-foreground text-xs italic">
-					Dies ist eine unfertige Version - Fehler und Performance-Probleme können auftreten
+					© {new Date().getFullYear()} QuestXen. All rights reserved.
 				</p>
 			</div>
 		</div>
