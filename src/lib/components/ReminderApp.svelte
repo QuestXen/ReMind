@@ -129,24 +129,33 @@
 		
 		const reminderElement = document.getElementById(`reminder-${id}`);
 		if (reminderElement) {
-			const animationStyles = ['animate-delete-scale-rotate', 'animate-delete-slide-out'];
-			const randomAnimation = animationStyles[Math.floor(Math.random() * animationStyles.length)];
-			
-			reminderElement.classList.add(randomAnimation);
-			const allReminders = document.querySelectorAll('[id^="reminder-"]');
-			let foundTarget = false;
-			allReminders.forEach((element) => {
-				if (foundTarget && element !== reminderElement) {
-					element.classList.add('animate-smooth-move-up');
-				setTimeout(() => {
-					element.classList.remove('animate-smooth-move-up');
-				}, 800);
-				}
-				if (element === reminderElement) {
-					foundTarget = true;
-				}
+			// Erste Phase: Inhalte ausblenden
+			const contentElements = reminderElement.querySelectorAll('.reminder-content, .reminder-text, .reminder-info');
+			contentElements.forEach(element => {
+				element.classList.add('animate-content-fade-out');
 			});
 			
+			// Zweite Phase: Karte animieren
+			setTimeout(() => {
+				reminderElement.classList.add('animate-delete-smooth');
+				
+				// Nachfolgende Elemente nach oben bewegen
+				const allReminders = document.querySelectorAll('[id^="reminder-"]');
+				let foundTarget = false;
+				allReminders.forEach((element) => {
+					if (foundTarget && element !== reminderElement) {
+						element.classList.add('animate-smooth-move-up');
+						setTimeout(() => {
+							element.classList.remove('animate-smooth-move-up');
+						}, 600);
+					}
+					if (element === reminderElement) {
+						foundTarget = true;
+					}
+				});
+			}, 200);
+			
+			// Dritte Phase: Element aus DOM entfernen
 			setTimeout(async () => {
 				try {
 					await invoke('delete_reminder', { reminderId: id });
@@ -154,8 +163,12 @@
 					console.log(`Deleted reminder with ID: ${id}`);
 				} catch (error) {
 					console.error('Failed to delete reminder:', error);
+					// Fehlerbehandlung: Animation rückgängig machen
 					if (reminderElement) {
-						reminderElement.classList.remove(randomAnimation);
+						reminderElement.classList.remove('animate-delete-smooth');
+						contentElements.forEach(element => {
+							element.classList.remove('animate-content-fade-out');
+						});
 					}
 				}
 			}, 800); 
@@ -544,78 +557,85 @@ onDestroy(() => {
 
 
 
-	@keyframes delete-scale-rotate {
+	@keyframes content-fade-out {
 		0% {
 			opacity: 1;
-			transform: scale(1) rotate(0deg);
-			height: auto;
-			margin-bottom: 1.5rem;
-		}
-		25% {
-			opacity: 0.8;
-			transform: scale(1.08) rotate(3deg);
-			height: auto;
-			margin-bottom: 1.5rem;
-		}
-		50% {
-			opacity: 0.5;
-			transform: scale(0.92) rotate(-2deg);
-			height: auto;
-			margin-bottom: 1.2rem;
-		}
-		75% {
-			opacity: 0.2;
-			transform: scale(0.7) rotate(1deg);
-			height: 50%;
-			margin-bottom: 0.8rem;
+			transform: translateY(0);
+			filter: blur(0px);
 		}
 		100% {
 			opacity: 0;
-			transform: scale(0.4) rotate(-3deg);
-			height: 0;
-			margin-bottom: 0;
-			padding-top: 0;
-			padding-bottom: 0;
-			overflow: hidden;
+			transform: translateY(-10px);
+			filter: blur(1px);
 		}
 	}
 
-	@keyframes delete-slide-out {
+	@keyframes delete-smooth {
 		0% {
 			opacity: 1;
-			transform: translateX(0) scale(1) rotateY(0deg);
-			height: auto;
+			transform: scale(1) translateX(0);
+			max-height: 500px;
+			max-width: 100%;
 			margin-bottom: 1.5rem;
+			padding: 2rem;
+			border-width: 1px;
+			box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05);
 			filter: blur(0px);
+			transform-origin: center top;
 		}
 		20% {
-			opacity: 0.9;
-			transform: translateX(-5px) scale(1.02) rotateY(-2deg);
-			height: auto;
-			margin-bottom: 1.5rem;
-			filter: blur(0px);
+			opacity: 0.8;
+			transform: scale(0.98) translateX(-5px);
+			max-height: 400px;
+			max-width: 98%;
+			margin-bottom: 1.4rem;
+			padding: 1.8rem;
+			border-width: 0.9px;
+			box-shadow: 0 5px 8px -2px rgba(0, 0, 0, 0.09), 0 3px 4px -1px rgba(0, 0, 0, 0.045);
+			filter: blur(0.3px);
 		}
 		40% {
-			opacity: 0.6;
-			transform: translateX(-20px) scale(0.95) rotateY(-5deg);
-			height: auto;
+			opacity: 0.5;
+			transform: scale(0.95) translateX(-15px);
+			max-height: 250px;
+			max-width: 95%;
 			margin-bottom: 1.2rem;
-			filter: blur(1px);
+			padding: 1.5rem;
+			border-width: 0.6px;
+			box-shadow: 0 2px 3px -1px rgba(0, 0, 0, 0.06), 0 1px 2px -1px rgba(0, 0, 0, 0.03);
+			filter: blur(0.7px);
 		}
-		70% {
-			opacity: 0.3;
-			transform: translateX(-60px) scale(0.8) rotateY(-10deg);
-			height: 60%;
+		60% {
+			opacity: 0.2;
+			transform: scale(0.9) translateX(-30px);
+			max-height: 100px;
+			max-width: 90%;
 			margin-bottom: 0.8rem;
-			filter: blur(2px);
+			padding: 1rem;
+			border-width: 0.2px;
+			box-shadow: 0 1px 1px 0 rgba(0, 0, 0, 0.03);
+			filter: blur(1.2px);
+		}
+		80% {
+			opacity: 0.05;
+			transform: scale(0.8) translateX(-45px);
+			max-height: 20px;
+			max-width: 80%;
+			margin-bottom: 0.3rem;
+			padding: 0.4rem;
+			border-width: 0px;
+			box-shadow: none;
+			filter: blur(1.8px);
 		}
 		100% {
 			opacity: 0;
-			transform: translateX(-120px) scale(0.6) rotateY(-15deg);
-			height: 0;
+			transform: scale(0) translateX(-50px);
+			max-height: 0;
+			max-width: 0;
 			margin-bottom: 0;
-			padding-top: 0;
-			padding-bottom: 0;
+			padding: 0;
+			border-width: 0px;
+			box-shadow: none;
 			filter: blur(3px);
 			overflow: hidden;
 		}
@@ -626,13 +646,13 @@ onDestroy(() => {
 			transform: translateY(0);
 			opacity: 1;
 		}
-		20% {
-			transform: translateY(-5px);
+		30% {
+			transform: translateY(-8px);
 			opacity: 0.95;
 		}
-		60% {
-			transform: translateY(-15px);
-			opacity: 0.9;
+		70% {
+			transform: translateY(-20px);
+			opacity: 0.98;
 		}
 		100% {
 			transform: translateY(-24px);
@@ -687,16 +707,16 @@ onDestroy(() => {
 		transform-origin: center top;
 	}
 
-	.animate-delete-scale-rotate {
-		animation: delete-scale-rotate 0.8s cubic-bezier(0.25, 0.46, 0.45, 0.94) forwards;
+	.animate-content-fade-out {
+		animation: content-fade-out 0.2s cubic-bezier(0.4, 0, 0.6, 1) forwards;
 	}
 
-	.animate-delete-slide-out {
-		animation: delete-slide-out 0.7s cubic-bezier(0.25, 0.46, 0.45, 0.94) forwards;
+	.animate-delete-smooth {
+		animation: delete-smooth 0.4s cubic-bezier(0.25, 0.46, 0.45, 0.94) forwards;
 	}
 
 	.animate-smooth-move-up {
-		animation: smooth-move-up 0.8s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+		animation: smooth-move-up 0.6s cubic-bezier(0.16, 1, 0.3, 1) forwards;
 	}
 
 	* {
@@ -880,16 +900,16 @@ onDestroy(() => {
 		{:else}
 			{#each $reminders as reminder, index (reminder.id)}
 			<Card id={`reminder-${reminder.id}`} class="bg-card border border-border shadow-lg hover:shadow-xl rounded-3xl overflow-hidden transition-all duration-800 group hover:scale-[1.02] animate-slide-up-staggered" style="animation-delay: {index * 0.1}s; will-change: transform, height; transition-timing-function: cubic-bezier(0.25, 0.46, 0.45, 0.94);">
-				<Content class="p-8 transition-all duration-800" style="transition-timing-function: cubic-bezier(0.25, 0.46, 0.45, 0.94);">
+				<Content class="reminder-content p-8 transition-all duration-800" style="transition-timing-function: cubic-bezier(0.25, 0.46, 0.45, 0.94);">
 					<div class="flex items-center justify-between gap-4">
 						<div class="flex items-center gap-6 flex-1 min-w-0">
 							<div 
 								class="w-6 h-6 rounded-full flex-shrink-0 shadow-md transition-all duration-300 group-hover:scale-110 {getColorStyle(reminder.color)}"
 								style="{getCustomColorStyle(reminder.color)}"
 							></div>
-							<div class="flex-1 min-w-0">
+							<div class="reminder-text flex-1 min-w-0">
 								<h3 class="text-xl text-subheading text-card-foreground mb-3 truncate">{reminder.name}</h3>
-								<div class="space-y-2">
+								<div class="reminder-info space-y-2">
 									<div class="flex items-center gap-2 text-sm text-body">
 										{#if reminder.interval === 'specific'}
 											<CalendarIcon class="w-4 h-4 flex-shrink-0" />
