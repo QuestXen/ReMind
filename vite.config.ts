@@ -12,6 +12,7 @@ export default defineConfig({
 			$lib: path.resolve('./src/lib')
 		}
 	},
+	publicDir: 'static',
 	server: {
 		port: 1420,
 		strictPort: true,

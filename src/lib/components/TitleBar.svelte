@@ -1,5 +1,6 @@
 <script lang="ts">
 	import { getCurrentWindow } from '@tauri-apps/api/window';
+	import logoImage from '$lib/assets/logo-transparent2.png';
 
 	interface Props {
 		title: string;
@@ -34,7 +35,7 @@
 	<div class="flex items-center gap-3">
 		<div class="bg-background flex h-6 w-6 items-center justify-center rounded-full overflow-hidden">
 			{#if useLogoIcon}
-				<img src="./static/logo-transparent2.png" alt="ReMind Logo" class="h-6 w-6 object-cover rounded-full" />
+				<img src={logoImage} alt="ReMind Logo" class="h-6 w-6 object-cover rounded-full" />
 			{:else}
 				<span class="text-primary-foreground text-xs font-bold">{icon}</span>
 			{/if}

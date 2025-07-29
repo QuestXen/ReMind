@@ -2,6 +2,7 @@
   "name": "remind",
   "private": true,
   "version": "1.1.4",
+  "license": "MIT",
   "description": "A desktop notification app to help you stay organized and never miss important reminders. Set up custom reminders for tasks, events, and deadlines, and receive timely notifications on your desktop.",
   "author": {
     "name": "Artjom"
@@ -29,6 +30,8 @@
     "eslint": "^9.32.0",
     "eslint-config-prettier": "^10.1.8",
     "eslint-plugin-svelte": "^3.11.0",
+    "flowbite": "^3.1.2",
+    "flowbite-svelte": "^1.10.21",
     "prettier": "^3.6.2",
     "prettier-plugin-svelte": "^3.4.0",
     "prettier-plugin-tailwindcss": "^0.6.14",
