@@ -70,6 +70,7 @@ fn default_settings() -> AppSettings {
     map.insert("autostartEnabled".to_string(), Value::Bool(false));
     map.insert("theme".to_string(), Value::Null);
     map.insert("notificationSound".to_string(), Value::Bool(true));
+    map.insert("language".to_string(), Value::String("en".to_string()));
     map
 }
 
@@ -268,6 +269,9 @@ fn migrate_v1_to_v2(data: &mut serde_json::Value) -> Result<(), Error> {
             }
             if !settings_obj.contains_key("notificationSound") {
                 settings_obj.insert("notificationSound".to_string(), serde_json::Value::Bool(true));
+            }
+            if !settings_obj.contains_key("language") {
+                settings_obj.insert("language".to_string(), serde_json::Value::String("en".to_string()));
             }
         }
     }

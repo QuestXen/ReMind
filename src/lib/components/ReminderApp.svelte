@@ -31,6 +31,7 @@
 	} from '$lib/stores';
 	import type { Reminder, ReminderInterval, ReminderColor } from '$lib/stores';
 	import { SvelteDate, SvelteMap } from 'svelte/reactivity';
+	import * as m from '../../paraglide/messages.js';
 
 	let showCreateForm = $state(false);
 	let showEditForm = $state(false);
@@ -87,12 +88,12 @@
 	}
 
 	const intervalOptions = [
-		{ value: 'minutes', label: 'Minuten' },
-		{ value: 'hours', label: 'Stunden' },
-		{ value: 'days', label: 'Tage' },
-		{ value: 'weeks', label: 'Wochen' },
-		{ value: 'months', label: 'Monate' },
-		{ value: 'specific', label: 'Bestimmtes Datum' }
+		{ value: 'minutes', label: m.minutes() },
+		{ value: 'hours', label: m.hours() },
+		{ value: 'days', label: m.days() },
+		{ value: 'weeks', label: m.weeks() },
+		{ value: 'months', label: m.days() },
+		{ value: 'specific', label: m.specific_date() }
 	];
 
 	const timeOptions = (() => {
@@ -107,12 +108,12 @@
 	})();
 
 	const intervalLabels = {
-		minutes: 'Minuten',
-		hours: 'Stunden',
-		days: 'Tage',
-		weeks: 'Wochen',
-		months: 'Monate',
-		specific: 'Bestimmtes Datum'
+		minutes: m.minutes(),
+		hours: m.hours(),
+		days: m.days(),
+		weeks: m.weeks(),
+		months: m.days(),
+		specific: m.specific_date()
 	};
 
 	let newReminderCalendarValue = $state(today(getLocalTimeZone()));
@@ -123,14 +124,14 @@
 
 	const newReminderTriggerContent = $derived(
 		intervalOptions.find((option) => option.value === newReminder.interval)?.label ??
-			'Intervall wählen'
+			m.select_interval()
 	);
 
 	const editReminderTriggerContent = $derived(
 		editingReminder
 			? (intervalOptions.find((option) => option.value === editingReminder!.interval)?.label ??
-					'Intervall wählen')
-			: 'Intervall wählen'
+					m.select_interval())
+			: m.select_interval()
 	);
 
 	async function createReminder() {
@@ -484,7 +485,7 @@
 			console.error('Failed to send notification:', error);
 			if ('Notification' in window && Notification.permission === 'granted') {
 				new Notification('ReMind', {
-					body: `Erinnerung: ${reminder.name}`,
+					body: m.reminder_notification({ name: reminder.name }),
 					icon: '/favicon.ico'
 				});
 			}
@@ -525,9 +526,9 @@
 			const date = new Date(reminder.specificDate);
 			const dateStr = date.toLocaleDateString('de-DE');
 			const timeStr = date.toLocaleTimeString('de-DE', { hour: '2-digit', minute: '2-digit' });
-			return `Am ${dateStr} um ${timeStr}`;
+			return `${dateStr} ${timeStr}`;
 		}
-		return `Alle ${reminder.intervalValue} ${intervalLabels[reminder.interval]}`;
+		return `${m.every()} ${reminder.intervalValue} ${intervalLabels[reminder.interval]}`;
 	}
 
 	function getTimeUntilNextReminder(reminder: Reminder): string {
@@ -556,22 +557,22 @@
 
 		if (days > 0) {
 			if (hours > 0) {
-				return `in ${days} Tag${days > 1 ? 'en' : ''} und ${hours} Stunde${hours > 1 ? 'n' : ''}`;
+				return `${m.in_time()} ${days} ${days > 1 ? m.days_plural() : m.day()} ${m.and()} ${hours} ${hours > 1 ? m.hours_plural() : m.hour()}`;
 			} else {
-				return `in ${days} Tag${days > 1 ? 'en' : ''}`;
+				return `${m.in_time()} ${days} ${days > 1 ? m.days_plural() : m.day()}`;
 			}
 		} else if (hours > 0) {
 			if (minutes > 0) {
-				return `in ${hours} Stunde${hours > 1 ? 'n' : ''} und ${minutes} Minute${minutes > 1 ? 'n' : ''}`;
+				return `${m.in_time()} ${hours} ${hours > 1 ? m.hours_plural() : m.hour()} ${m.and()} ${minutes} ${minutes > 1 ? m.minutes_plural() : m.minute()}`;
 			} else {
-				return `in ${hours} Stunde${hours > 1 ? 'n' : ''}`;
+				return `${m.in_time()} ${hours} ${hours > 1 ? m.hours_plural() : m.hour()}`;
 			}
 		} else if (minutes > 0) {
-			return `in ${minutes} Minute${minutes > 1 ? 'n' : ''}`;
+			return `${m.in_time()} ${minutes} ${minutes > 1 ? m.minutes_plural() : m.minute()}`;
 		} else if (seconds > 0) {
-			return `in ${seconds} Sekunde${seconds > 1 ? 'n' : ''}`;
+			return `${m.in_time()} ${seconds} ${seconds > 1 ? m.seconds_plural() : m.second()}`;
 		} else {
-			return 'in wenigen Sekunden';
+			return m.few_seconds();
 		}
 	}
 

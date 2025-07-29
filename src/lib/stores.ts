@@ -19,6 +19,7 @@ export interface Reminder {
 }
 
 export interface AppSettings {
+	language: string;
 	autostartEnabled: boolean;
 	theme?: string | null;
 	notificationSound: boolean;
@@ -28,6 +29,7 @@ export interface AppSettings {
 // Global Stores
 export const reminders: Writable<Reminder[]> = writable([]);
 export const settings: Writable<AppSettings> = writable({
+	language: 'en',
 	autostartEnabled: false,
 	theme: null,
 	notificationSound: true

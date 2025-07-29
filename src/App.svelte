@@ -6,6 +6,7 @@
 	import Loading from '$lib/components/Loading.svelte';
 	import { reminders, settings, isLoading, loadingError } from '$lib/stores';
 	import type { Reminder, AppSettings } from '$lib/stores';
+	import { setLocale } from "./paraglide/runtime.js";
 
 	let retryCount = 0;
 	const MAX_RETRIES = 3;
@@ -24,6 +25,7 @@
 		autostart_enabled?: boolean;
 		theme?: string | null;
 		notification_sound?: boolean;
+		language?: string;
 		[key: string]: unknown;
 	}
 
@@ -64,6 +66,7 @@
 			]);
 
 			const appSettings: AppSettings = {
+				language: (loadedSettings.language as 'en' | 'de') || 'en',
 				autostartEnabled: Boolean(loadedSettings.autostart_enabled),
 				theme: typeof loadedSettings.theme === 'string' ? loadedSettings.theme : null,
 				notificationSound: loadedSettings.notification_sound !== false,
@@ -73,6 +76,7 @@
 			// Update stores
 			settings.set(appSettings);
 			reminders.set(loadedReminders);
+			setLocale(appSettings.language as 'en' | 'de');
 
 			isLoading.set(false);
 			retryCount = 0;

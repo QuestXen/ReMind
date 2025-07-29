@@ -1,12 +1,15 @@
 <script lang="ts">
 	import { Button } from '$lib/components/ui/button/index';
 	import { Switch } from '$lib/components/ui/switch/index';
+	import * as Select from '$lib/components/ui/select/index';
 	import { ArrowLeft } from '@lucide/svelte';
 	import { createEventDispatcher, onMount } from 'svelte';
 	import { enable, disable } from '@tauri-apps/plugin-autostart';
 	import { invoke } from '@tauri-apps/api/core';
 	import TitleBar from './TitleBar.svelte';
 	import { settings, updateSetting } from '$lib/stores';
+	import { setLocale } from '../../paraglide/runtime.js';
+	import * as m from '../../paraglide/messages.js';
 
 	interface SystemInfo {
 		app_version: string;
@@ -86,6 +89,34 @@
 		}
 	}
 
+	let languages = $state([
+		{ value: 'en', label: m.english() },
+		{ value: 'de', label: m.german() }
+	]);
+
+	const triggerContent = $derived(
+		languages.find((l) => l.value === $settings.language)?.label ?? 'Select language'
+	);
+
+	async function handleLanguageChange() {
+		try {
+			updating = true;
+			updateSetting('language', $settings.language);
+			await invoke('update_setting', { key: 'language', value: $settings.language });
+			// Setze die Sprache ohne Reload, um den Settings-Zustand zu behalten
+			setLocale($settings.language as 'en' | 'de', { reload: false });
+			// Trigger eine Aktualisierung der UI durch Reaktivität
+			languages = [
+				{ value: 'en', label: m.english() },
+				{ value: 'de', label: m.german() }
+			];
+		} catch (error) {
+			console.error('Failed to update language:', error);
+		} finally {
+			updating = false;
+		}
+	}
+
 	async function loadSystemInfo() {
 		try {
 			const info = await invoke<SystemInfo>('get_system_info');
@@ -111,14 +142,42 @@
 				class="text-muted-foreground hover:text-muted-foreground/80 hover:bg-muted/50 flex items-center gap-2 transition-colors"
 			>
 				<ArrowLeft class="h-4 w-4" />
-				Zurück
+				{m.back()}
 			</Button>
 		</div>
 
 		<div class="px-6 pb-6">
 			<div class="mx-auto max-w-4xl">
 				<div class="mb-8 text-center">
-					<h1 class="text-heading text-foreground mb-4 text-3xl">Einstellungen</h1>
+					<h1 class="text-heading text-foreground mb-4 text-3xl">{m.settings()}</h1>
+				</div>
+
+				<!-- Language Setting -->
+				<div class="bg-card border-border mb-6 rounded-3xl border p-8">
+					<div class="space-y-6">
+						<div class="flex items-center justify-between">
+							<div class="space-y-1">
+								<h3 class="text-heading text-card-foreground text-lg">{m.language()}</h3>
+								<p class="text-muted-foreground text-body text-sm">
+									{m.language_description()}
+								</p>
+							</div>
+							<Select.Root type="single" name="language" bind:value={$settings.language} onValueChange={handleLanguageChange}>
+								<Select.Trigger class="w-[180px]">
+									{triggerContent}
+								</Select.Trigger>
+								<Select.Content>
+									<Select.Group>
+										{#each languages as language (language.value)}
+											<Select.Item value={language.value} label={language.label}>
+												{language.label}
+											</Select.Item>
+										{/each}
+									</Select.Group>
+								</Select.Content>
+							</Select.Root>
+						</div>
+					</div>
 				</div>
 
 				<!-- Autostart Setting -->
@@ -126,10 +185,8 @@
 					<div class="space-y-6">
 						<div class="flex items-center justify-between">
 							<div class="space-y-1">
-								<h3 class="text-heading text-card-foreground text-lg">Autostart</h3>
-								<p class="text-muted-foreground text-body text-sm">
-									App automatisch beim Systemstart starten
-								</p>
+								<h3 class="text-heading text-card-foreground text-lg">{m.autostart()}</h3>
+								<p class="text-muted-foreground text-body text-sm">{m.autostart_description()}</p>
 							</div>
 							<div class="flex items-center">
 								{#if loading}
@@ -151,10 +208,8 @@
 					<div class="space-y-6">
 						<div class="flex items-center justify-between">
 							<div class="space-y-1">
-								<h3 class="text-heading text-card-foreground text-lg">Benachrichtigungssound</h3>
-								<p class="text-muted-foreground text-body text-sm">
-									Windows-Systemsound bei Benachrichtigungen abspielen
-								</p>
+								<h3 class="text-heading text-card-foreground text-lg">{m.notification_sound()}</h3>
+								<p class="text-muted-foreground text-body text-sm">{m.notification_sound_description()}</p>
 							</div>
 							<div class="flex items-center">
 								{#if loading}
