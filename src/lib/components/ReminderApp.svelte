@@ -1,39 +1,20 @@
 <script lang="ts">
 	import { Button } from '$lib/components/ui/button/index';
 	import { Card, Header, Title, Content } from '$lib/components/ui/card/index';
-	import { Input } from '$lib/components/ui/input/index';
-	import * as Select from '$lib/components/ui/select/index';
-	import * as DropdownMenu from '$lib/components/ui/dropdown-menu/index';
-	import { Calendar } from '$lib/components/ui/calendar/index';
-	import * as Popover from '$lib/components/ui/popover/index';
-	import { getLocalTimeZone, today, parseDate } from '@internationalized/date';
 	import { invoke } from '@tauri-apps/api/core';
-	import { Plus, Bell, Trash2, Calendar as CalendarIcon, Clock, Edit, Settings, Palette } from '@lucide/svelte';
+	import { Plus, Bell, Trash2, Calendar as CalendarIcon, Clock, Edit, Settings } from '@lucide/svelte';
 	import { onMount, onDestroy } from 'svelte';
 	
-	import ColorPicker from 'svelte-awesome-color-picker';
 	import SettingsComponent from './Settings.svelte';
 	import TitleBar from './TitleBar.svelte';
+	import ReminderDialog from './ReminderDialog.svelte';
 	import { reminders, addReminder, updateReminder as updateReminderStore, deleteReminderFromStore } from '$lib/stores';
 	import type { Reminder, ReminderInterval, ReminderColor } from '$lib/stores';
 
-	let showCreateForm = $state(false);
-	let showEditForm = $state(false);
 	let showSettings = $state(false);
+	let showDialog = $state(false);
+	let dialogMode = $state<'create' | 'edit'>('create');
 	let editingReminder = $state<Reminder | null>(null);
-	let newReminder = $state({
-		name: '',
-		interval: 'days' as ReminderInterval,
-		intervalValue: 1,
-		specificDate: '',
-		specificTime: '12:00',
-		color: 'blue' as ReminderColor
-	});
-
-	let showColorPicker = $state(false);
-	let showEditColorPicker = $state(false);
-	let customColor = $state('#7f5af0'); 
-	let editCustomColor = $state('#7f5af0');
 
 	let reminderTimers = new Map<string, {
 		timerId: NodeJS.Timeout;
@@ -68,26 +49,6 @@
 		return '';
 	}
 
-	const intervalOptions = [
-		{ value: 'minutes', label: 'Minuten' },
-		{ value: 'hours', label: 'Stunden' },
-		{ value: 'days', label: 'Tage' },
-		{ value: 'weeks', label: 'Wochen' },
-		{ value: 'months', label: 'Monate' },
-		{ value: 'specific', label: 'Bestimmtes Datum' }
-	];
-
-	const timeOptions = (() => {
-		const options = [];
-		for (let hour = 0; hour < 24; hour++) {
-			for (let minute = 0; minute < 60; minute += 15) {
-				const timeStr = `${hour.toString().padStart(2, '0')}:${minute.toString().padStart(2, '0')}`;
-				options.push({ value: timeStr, label: timeStr });
-			}
-		}
-		return options;
-	})();
-
 	const intervalLabels = {
 		minutes: 'Minuten',
 		hours: 'Stunden',
@@ -97,170 +58,63 @@
 		specific: 'Bestimmtes Datum'
 	};
 
-	let newReminderCalendarValue = $state(today(getLocalTimeZone()));
-	let editReminderCalendarValue = $state(today(getLocalTimeZone()));
-	
-	let newReminderPopoverOpen = $state(false);
-	let editReminderPopoverOpen = $state(false);
 
-	const newReminderTriggerContent = $derived(
-		intervalOptions.find((option) => option.value === newReminder.interval)?.label ?? 'Intervall wählen'
-	);
-
-	const editReminderTriggerContent = $derived(
-		editingReminder ? intervalOptions.find((option) => option.value === editingReminder!.interval)?.label ?? 'Intervall wählen' : 'Intervall wählen'
-	);
-
-	async function createReminder() {
-		if (!newReminder.name.trim()) return;
-		
-		const reminder: Reminder = {
-			id: crypto.randomUUID(),
-			name: newReminder.name,
-			interval: newReminder.interval,
-			intervalValue: newReminder.intervalValue,
-			specificDate: newReminder.interval === 'specific' ? newReminder.specificDate : undefined,
-			specificTime: newReminder.interval === 'specific' ? newReminder.specificTime : undefined,
-			color: newReminder.color,
-			createdAt: new Date().toISOString(),
-			active: true
-		};
-		
-		try {
-			await invoke('add_reminder', { reminder });
-			addReminder(reminder);
-			resetForm();
-			showCreateForm = false;
-			setTimeout(() => {
-				const newReminderElement = document.getElementById(`reminder-${reminder.id}`);
-				if (newReminderElement) {
-					newReminderElement.scrollIntoView({ 
-						behavior: 'smooth', 
-						block: 'center',
-						inline: 'nearest'
-					});
-				}
-			}, 500);
+	async function handleDialogSave(reminderData: Partial<Reminder>) {
+		if (dialogMode === 'create') {
+			const reminder: Reminder = {
+				id: crypto.randomUUID(),
+				name: reminderData.name!,
+				interval: reminderData.interval!,
+				intervalValue: reminderData.intervalValue!,
+				specificDate: reminderData.specificDate,
+				specificTime: reminderData.specificTime,
+				color: reminderData.color!,
+				createdAt: new Date().toISOString(),
+				active: true
+			};
 			
-			startReminderTimer(reminder);
-		} catch (error) {
-			console.error('Failed to create reminder:', error);
+			try {
+				await invoke('add_reminder', { reminder });
+				addReminder(reminder);
+				startReminderTimer(reminder);
+			} catch (error) {
+				console.error('Failed to create reminder:', error);
+			}
+		} else if (dialogMode === 'edit' && editingReminder) {
+			const updatedReminder: Reminder = {
+				...editingReminder,
+				...reminderData
+			} as Reminder;
+			
+			clearReminderTimer(updatedReminder.id);
+			
+			try {
+				await invoke('update_reminder', { reminder: updatedReminder });
+				updateReminderStore(updatedReminder);
+				startReminderTimer(updatedReminder);
+				console.log(`Updated reminder: ${updatedReminder.name}`);
+			} catch (error) {
+				console.error('Failed to update reminder:', error);
+				if (editingReminder) {
+					startReminderTimer(editingReminder);
+				}
+			}
 		}
+		
+		// Dialog schließen und State zurücksetzen
+		showDialog = false;
+		editingReminder = null;
 	}
 
-	function resetForm() {
-		newReminder = {
-			name: '',
-			interval: 'days',
-			intervalValue: 1,
-			specificDate: '',
-			specificTime: '12:00',
-			color: 'blue'
-		};
-		newReminderCalendarValue = today(getLocalTimeZone());
-		newReminderPopoverOpen = false;
-		showColorPicker = false;
-		customColor = '#3b82f6';
-	}
-	$effect(() => {
-		if (newReminderCalendarValue && newReminder.interval === 'specific') {
-			const dateStr = newReminderCalendarValue.toString();
-			newReminder.specificDate = `${dateStr}T${newReminder.specificTime}:00`;
-		}
-	});
 
-	$effect(() => {
-		if (editReminderCalendarValue && editingReminder && editingReminder.interval === 'specific') {
-			const dateStr = editReminderCalendarValue.toString();
-			const timeStr = editingReminder.specificTime || '12:00';
-			editingReminder.specificDate = `${dateStr}T${timeStr}:00`;
-		}
-	});
 
 	function startEditReminder(reminder: Reminder) {
 		editingReminder = { ...reminder };
-		
-		if (reminder.interval === 'specific' && reminder.specificDate) {
-			try {
-				const [datePart, timePart] = reminder.specificDate.split('T');
-				editReminderCalendarValue = parseDate(datePart);
-				if (timePart && editingReminder) {
-					editingReminder.specificTime = timePart.substring(0, 5);
-				}
-			} catch {
-				editReminderCalendarValue = today(getLocalTimeZone());
-				if (editingReminder) {
-					editingReminder.specificTime = '12:00';
-				}
-			}
-		} else {
-			editReminderCalendarValue = today(getLocalTimeZone());
-			if (editingReminder) {
-				editingReminder.specificTime = '12:00';
-			}
-		}
-
-		showEditForm = true;
-		showCreateForm = false;
-		editReminderPopoverOpen = false;
-		
-		setTimeout(() => {
-			const formElement = document.getElementById('create-form');
-			if (formElement) {
-				const contentScroll = document.getElementById('content-scroll');
-				if (contentScroll) {
-					contentScroll.style.scrollBehavior = 'smooth';
-					const elementTop = formElement.offsetTop;
-					contentScroll.scrollTop = Math.max(0, elementTop - 20);
-				}
-			}
-		}, 200);
+		dialogMode = 'edit';
+		showDialog = true;
 	}
 
-	async function updateReminder() {
-		if (!editingReminder || !editingReminder.name.trim()) return;
-		clearReminderTimer(editingReminder.id);
-		
-		try {
-			await invoke('update_reminder', { reminder: editingReminder });
-			
-			updateReminderStore(editingReminder);
-			startReminderTimer(editingReminder);
-			
-			const updatedReminderId = editingReminder.id;
-			const updatedReminderName = editingReminder.name;
-			showEditForm = false;
-			editingReminder = null;
-			setTimeout(() => {
-				const updatedReminderElement = document.getElementById(`reminder-${updatedReminderId}`);
-				if (updatedReminderElement) {
-					const contentScroll = document.getElementById('content-scroll');
-					if (contentScroll) {
-						contentScroll.style.scrollBehavior = 'smooth';
-						const elementTop = updatedReminderElement.offsetTop;
-						const elementHeight = updatedReminderElement.offsetHeight;
-						const containerHeight = contentScroll.clientHeight;
-						const scrollTop = elementTop - (containerHeight / 2) + (elementHeight / 2);
-						contentScroll.scrollTop = Math.max(0, scrollTop);
-					}
-				}
-			}, 400);
-			
-			console.log(`Updated reminder: ${updatedReminderName}`);
-		} catch (error) {
-			console.error('Failed to update reminder:', error);
-			if (editingReminder) {
-				startReminderTimer(editingReminder);
-			}
-		}
-	}
 
-	function cancelEdit() {
-		showEditForm = false;
-		editingReminder = null;
-		showEditColorPicker = false;
-		editCustomColor = '#3b82f6';
-	}
 
 	function openSettings() {
 		showSettings = true;
@@ -589,6 +443,60 @@ onDestroy(() => {
 			clearInterval(timeUpdateInterval);
 		}
 		console.log('ReminderApp component destroyed, all timers cleared');
+	});
+
+	// Scroll-basiertes Button-Scaling
+	onMount(() => {
+		const contentScroll = document.getElementById('content-scroll');
+		const newReminderBtn = document.getElementById('new-reminder-btn');
+		
+		if (contentScroll && newReminderBtn) {
+				let isHovered = false;
+				
+				// Basis-Styling setzen
+				newReminderBtn.style.transition = 'all 0.3s cubic-bezier(0.4, 0, 0.2, 1)';
+				newReminderBtn.style.transformOrigin = 'center';
+				
+				// Hover-Events
+				newReminderBtn.addEventListener('mouseenter', () => {
+					isHovered = true;
+					newReminderBtn.style.transform = 'scale(1.05)';
+					newReminderBtn.style.opacity = '1';
+					newReminderBtn.style.boxShadow = '0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04)';
+				});
+				
+				newReminderBtn.addEventListener('mouseleave', () => {
+					isHovered = false;
+					// Scroll-Position prüfen und entsprechend skalieren
+					const scrollTop = contentScroll.scrollTop;
+					if (scrollTop > 50) {
+						newReminderBtn.style.transform = 'scale(0.7)';
+						newReminderBtn.style.opacity = '0.8';
+						newReminderBtn.style.boxShadow = '0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05)';
+					} else {
+						newReminderBtn.style.transform = 'scale(1)';
+						newReminderBtn.style.opacity = '1';
+						newReminderBtn.style.boxShadow = '0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05)';
+					}
+				});
+				
+				// Scroll-Event
+				contentScroll.addEventListener('scroll', () => {
+					const scrollTop = contentScroll.scrollTop;
+					
+					if (!isHovered) {
+						if (scrollTop > 50) {
+							newReminderBtn.style.transform = 'scale(0.7)';
+							newReminderBtn.style.opacity = '0.8';
+							newReminderBtn.style.boxShadow = '0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05)';
+						} else {
+							newReminderBtn.style.transform = 'scale(1)';
+							newReminderBtn.style.opacity = '1';
+							newReminderBtn.style.boxShadow = '0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05)';
+						}
+					}
+				});
+			}
 	});
 </script>
 
@@ -929,368 +837,37 @@ onDestroy(() => {
   <div id="content-scroll" class="flex-1 overflow-y-auto bg-background relative {showSettings ? 'animate-slide-out-left' : 'animate-slide-in-left'}">
 	<div class="p-6">
 		<div class="max-w-4xl mx-auto">
-		<div class="flex justify-center mb-12">
-			<Button 
+<!-- Fixed New Reminder Button -->
+		<div class="fixed top-20 left-1/2 transform -translate-x-1/2 z-40">
+			<Button
+				id="new-reminder-btn"
+				class="bg-primary hover:bg-primary/90 text-primary-foreground px-8 py-4 rounded-2xl shadow-lg border-0 text-subheading"
+				style="transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1); transform-origin: center;"
 				onclick={() => {
-			showCreateForm = true;
-			setTimeout(() => {
-				const createFormElement = document.getElementById('create-form');
-				if (createFormElement) {
-					const contentScroll = document.getElementById('content-scroll');
-					if (contentScroll) {
-						contentScroll.style.scrollBehavior = 'smooth';
-						const elementTop = createFormElement.offsetTop;
-						contentScroll.scrollTop = Math.max(0, elementTop - 20);
-					}
-				}
-			}, 200);
-		}}
-				class="bg-primary hover:bg-primary/90 text-primary-foreground px-8 py-4 rounded-2xl shadow-lg transition-all duration-300 hover:scale-105 hover:shadow-xl border-0 text-subheading"
+					dialogMode = 'create';
+					showDialog = true;
+					editingReminder = null;
+				}}
 			>
 				<Plus class="w-5 h-5 mr-3" />
 				Neue Erinnerung
 			</Button>
 		</div>
 
-	{#if showCreateForm || showEditForm}
-		<div class="form-container">
-			<Card 
-				id="create-form" 
-				class="mb-12 bg-card border border-border shadow-xl rounded-3xl overflow-hidden animate-slide-up"
-			>
-			<Content class="space-y-8 p-8">
-				<h2 class="text-3xl text-heading text-card-foreground mb-6">
-					{showEditForm ? 'Erinnerung bearbeiten' : 'Neue Erinnerung erstellen'}
-				</h2>
-				<div class="transition-all duration-300">
-					<label for="reminder-name" class="block text-sm text-subheading text-card-foreground mb-3">Erinnerungsname</label>
-					{#if showEditForm}
-						<Input 
-								id="reminder-name"
-								bind:value={editingReminder!.name}
-								placeholder="z.B. Medikamente nehmen, Meeting vorbereiten..."
-								class="w-full h-12 border-border focus:border-ring focus:ring-ring rounded-xl px-4 transition-all duration-300 bg-input focus:bg-background text-body text-foreground"
-							/>
-					{:else}
-						<Input 
-								id="reminder-name"
-								bind:value={newReminder.name}
-								placeholder="z.B. Medikamente nehmen, Wasser trinken..."
-								class="w-full h-12 border-border focus:border-ring focus:ring-ring rounded-xl px-4 transition-all duration-300 bg-input focus:bg-background text-body text-foreground"
-							/>
-					{/if}
-				</div>
+		<!-- Spacer for fixed button -->
+		<div class="mb-8 h-16"></div>
 
-				<div class="grid grid-cols-1 md:grid-cols-2 gap-8">
-					<div class="transition-all duration-300">
-						<label for="reminder-interval" class="block text-sm text-subheading text-card-foreground mb-3">Intervall</label>
-						{#if showEditForm && editingReminder}
-							<Select.Root type="single" name="editReminderInterval" bind:value={editingReminder.interval}>
-								<Select.Trigger class="w-full h-12 px-4 bg-input border border-border rounded-xl text-foreground focus:border-ring focus:ring-4 focus:ring-ring/20 transition-all duration-300 hover:border-ring/50 flex items-center">
-									{editReminderTriggerContent}
-								</Select.Trigger>
-								<Select.Content>
-									<Select.Group>
-										<Select.Label>Intervall wählen</Select.Label>
-										{#each intervalOptions as option (option.value)}
-											<Select.Item value={option.value} label={option.label}>
-												{option.label}
-											</Select.Item>
-										{/each}
-									</Select.Group>
-								</Select.Content>
-							</Select.Root>
-						{:else}
-							<Select.Root type="single" name="newReminderInterval" bind:value={newReminder.interval}>
-								<Select.Trigger class="w-full h-12 px-4 bg-input border border-border rounded-xl text-foreground focus:border-ring focus:ring-4 focus:ring-ring/20 transition-all duration-300 hover:border-ring/50 flex items-center">
-									{newReminderTriggerContent}
-								</Select.Trigger>
-								<Select.Content>
-									<Select.Group>
-										<Select.Label>Intervall wählen</Select.Label>
-										{#each intervalOptions as option (option.value)}
-											<Select.Item value={option.value} label={option.label}>
-												{option.label}
-											</Select.Item>
-										{/each}
-									</Select.Group>
-								</Select.Content>
-							</Select.Root>
-						{/if}
-					</div>
-
-					{#if showEditForm && editingReminder}
-						{#if editingReminder.interval !== 'specific'}
-							<div class="transition-all duration-300">
-								<label for="reminder-interval-value" class="block text-sm text-subheading text-card-foreground mb-3">Anzahl</label>
-								<Input 
-									id="reminder-interval-value"
-									type="number"
-									bind:value={editingReminder.intervalValue}
-									min="1"
-									class="w-full h-10 border-border focus:border-ring focus:ring-ring rounded-xl px-4 transition-all duration-300 bg-input focus:bg-background text-body text-foreground"
-								/>
-							</div>
-						{:else}
-							<div class="transition-all duration-300 space-y-4">
-								<div>
-									<label for="reminder-specific-date" class="block text-sm text-subheading text-card-foreground mb-3">Datum wählen</label>
-									<Popover.Root bind:open={editReminderPopoverOpen}>
-									<Popover.Trigger class="w-full h-10 justify-start text-left font-normal border-border hover:bg-accent bg-input border border-border rounded-xl px-4 text-foreground focus:border-ring focus:ring-4 focus:ring-ring/20 transition-all duration-300 hover:border-ring/50 flex items-center">
-										<CalendarIcon class="mr-2 h-4 w-4" />
-										{editReminderCalendarValue ? editReminderCalendarValue.toDate(getLocalTimeZone()).toLocaleDateString('de-DE') : 'Datum auswählen'}
-									</Popover.Trigger>
-										<Popover.Content class="w-auto p-0" align="start">
-											<Calendar 
-												type="single" 
-												bind:value={editReminderCalendarValue}
-												class="rounded-md border-0"
-												captionLayout="dropdown"
-												locale="de-DE"
-												minValue={today(getLocalTimeZone())}
-												onValueChange={() => editReminderPopoverOpen = false}
-											/>
-										</Popover.Content>
-									</Popover.Root>
-								</div>
-								<div>
-									<label for="reminder-specific-time" class="block text-sm text-subheading text-card-foreground mb-3">Uhrzeit</label>
-									<DropdownMenu.Root>
-										<DropdownMenu.Trigger class="w-full h-10 justify-start text-left font-normal border-border hover:bg-accent bg-input border border-border rounded-xl px-4 text-foreground focus:border-ring focus:ring-4 focus:ring-ring/20 transition-all duration-300 hover:border-ring/50 flex items-center">
-											<Clock class="mr-2 h-4 w-4" />
-											{editingReminder?.specificTime || 'Uhrzeit wählen'}
-										</DropdownMenu.Trigger>
-										<DropdownMenu.Content class="w-48 max-h-60 overflow-y-auto">
-											<DropdownMenu.Group>
-												<DropdownMenu.Label>Uhrzeit auswählen</DropdownMenu.Label>
-												{#each timeOptions as timeOption (timeOption.value)}
-													<DropdownMenu.Item onclick={() => { if (editingReminder) editingReminder.specificTime = timeOption.value; }}>
-														{timeOption.label}
-													</DropdownMenu.Item>
-												{/each}
-											</DropdownMenu.Group>
-										</DropdownMenu.Content>
-									</DropdownMenu.Root>
-								</div>
-							</div>
-						{/if}
-					{:else}
-						{#if newReminder.interval !== 'specific'}
-							<div class="transition-all duration-300">
-								<label for="new-reminder-interval-value" class="block text-sm text-subheading text-card-foreground mb-3">Anzahl</label>
-								<Input 
-									id="new-reminder-interval-value"
-									type="number"
-									bind:value={newReminder.intervalValue}
-									min="1"
-									class="w-full h-10 border-border focus:border-ring focus:ring-ring rounded-xl px-4 transition-all duration-300 bg-input focus:bg-background text-body text-foreground"
-								/>
-							</div>
-						{:else}
-						<div class="transition-all duration-300 space-y-4">
-							<div>
-								<label for="new-reminder-specific-date" class="block text-sm text-subheading text-card-foreground mb-3">Datum wählen</label>
-								<Popover.Root bind:open={newReminderPopoverOpen}>
-								<Popover.Trigger class="w-full h-10 justify-start text-left font-normal border-border hover:bg-accent bg-input border border-border rounded-xl px-4 text-foreground focus:border-ring focus:ring-4 focus:ring-ring/20 transition-all duration-300 hover:border-ring/50 flex items-center">
-									<CalendarIcon class="mr-2 h-4 w-4" />
-									{newReminderCalendarValue ? newReminderCalendarValue.toDate(getLocalTimeZone()).toLocaleDateString('de-DE') : 'Datum auswählen'}
-								</Popover.Trigger>
-									<Popover.Content class="w-auto p-0" align="start">
-										<Calendar 
-											type="single" 
-											bind:value={newReminderCalendarValue}
-											class="rounded-md border-0"
-											captionLayout="dropdown"
-											locale="de-DE"
-											minValue={today(getLocalTimeZone())}
-											onValueChange={() => newReminderPopoverOpen = false}
-										/>
-									</Popover.Content>
-								</Popover.Root>
-							</div>
-							<div>
-								<label for="new-reminder-specific-time" class="block text-sm text-subheading text-card-foreground mb-3">Uhrzeit</label>
-								<DropdownMenu.Root>
-									<DropdownMenu.Trigger class="w-full h-10 justify-start text-left font-normal border-border hover:bg-accent bg-input border border-border rounded-xl px-4 text-foreground focus:border-ring focus:ring-4 focus:ring-ring/20 transition-all duration-300 hover:border-ring/50 flex items-center">
-										<Clock class="mr-2 h-4 w-4" />
-										{newReminder.specificTime || 'Uhrzeit wählen'}
-									</DropdownMenu.Trigger>
-									<DropdownMenu.Content class="w-48 max-h-60 overflow-y-auto">
-										<DropdownMenu.Group>
-											<DropdownMenu.Label>Uhrzeit auswählen</DropdownMenu.Label>
-											{#each timeOptions as timeOption (timeOption.value)}
-												<DropdownMenu.Item onclick={() => newReminder.specificTime = timeOption.value}>
-													{timeOption.label}
-												</DropdownMenu.Item>
-											{/each}
-										</DropdownMenu.Group>
-									</DropdownMenu.Content>
-								</DropdownMenu.Root>
-							</div>
-						</div>
-						{/if}
-					{/if}
-				</div>
-
-				<fieldset class="transition-all duration-300">
-					<legend class="block text-sm text-subheading text-card-foreground mb-4">Akzentfarbe wählen</legend>
-					<div class="flex gap-4 items-center">
-						{#each Object.entries(colorClasses) as [color, classes]}
-							{#if showEditForm}
-								<button
-									type="button"
-									onclick={() => { 
-										if (editingReminder) {
-											editingReminder.color = color as ReminderColor;
-											showEditColorPicker = false;
-										}
-									}}
-									aria-label="Farbe {color} auswählen"
-									class="w-10 h-10 rounded-full {classes} {editingReminder?.color === color ? 'ring-4 ring-primary scale-110 shadow-lg' : 'ring-2 ring-border'} transition-all duration-300 hover:scale-105 hover:shadow-md"
-								></button>
-							{:else}
-								<button
-									type="button"
-									onclick={() => {
-										newReminder.color = color as ReminderColor;
-										showColorPicker = false;
-									}}
-									aria-label="Farbe {color} auswählen"
-									class="w-10 h-10 rounded-full {classes} {newReminder.color === color ? 'ring-4 ring-primary scale-110 shadow-lg' : 'ring-2 ring-border'} transition-all duration-300 hover:scale-105 hover:shadow-md"
-								></button>
-							{/if}
-						{/each}
-						
-							{#if showEditForm}
-								<Popover.Root bind:open={showEditColorPicker}>
-									<Popover.Trigger>
-										<button
-											type="button"
-											aria-label="Benutzerdefinierte Farbe wählen"
-											class="w-10 h-10 rounded-full transition-all duration-300 hover:scale-105 hover:shadow-md overflow-hidden flex items-center justify-center {editingReminder?.color?.startsWith('#') ? 'ring-4 ring-primary scale-110 shadow-lg' : 'ring-2 ring-border'}"
-											style="{editingReminder?.color?.startsWith('#') ? `background: ${editingReminder.color};` : 'background: linear-gradient(45deg, #7f5af0, #50fa7b, #e8a87c, #ff6b6b);'}"
-										>
-											{#if !editingReminder?.color?.startsWith('#')}
-												<Palette class="w-4 h-4 text-white drop-shadow-sm" />
-											{/if}
-										</button>
-									</Popover.Trigger>
-									<Popover.Content class="w-auto p-4 bg-card border border-border rounded-xl shadow-xl">
-										<div class="space-y-3">
-											<h4 class="text-sm font-medium text-card-foreground">Benutzerdefinierte Farbe</h4>
-											<ColorPicker 
-												bind:hex={editCustomColor}
-												position="responsive"
-												isDialog={false}
-												--picker-height="120px"
-												--picker-width="200px"
-												--slider-width="20px"
-												--cp-bg-color="hsl(var(--card))"
-												--cp-border-color="hsl(var(--border))"
-												--cp-text-color="hsl(var(--card-foreground))"
-												--cp-input-color="hsl(var(--input))"
-												--cp-button-hover-color="hsl(var(--accent))"
-											/>
-											<Button 
-												onclick={() => {
-													if (editingReminder) {
-														editingReminder.color = editCustomColor;
-														showEditColorPicker = false;
-													}
-												}}
-												class="w-full bg-primary hover:bg-primary/90 text-primary-foreground"
-											>
-												Farbe übernehmen
-											</Button>
-										</div>
-									</Popover.Content>
-								</Popover.Root>
-							{:else}
-								<Popover.Root bind:open={showColorPicker}>
-									<Popover.Trigger>
-										<button
-											type="button"
-											aria-label="Benutzerdefinierte Farbe wählen"
-											class="w-10 h-10 rounded-full transition-all duration-300 hover:scale-105 hover:shadow-md overflow-hidden flex items-center justify-center {newReminder.color?.startsWith('#') ? 'ring-4 ring-primary scale-110 shadow-lg' : 'ring-2 ring-border'}"
-											style="{newReminder.color?.startsWith('#') ? `background: ${newReminder.color};` : 'background: linear-gradient(45deg, #7f5af0, #50fa7b, #e8a87c, #ff6b6b);'}"
-										>
-											{#if !newReminder.color?.startsWith('#')}
-											<Palette class="w-4 h-4 text-white drop-shadow-sm" />
-										{/if}
-										</button>
-									</Popover.Trigger>
-									<Popover.Content class="w-auto p-4 bg-card border border-border rounded-xl shadow-xl">
-										<div class="space-y-3">
-											<h4 class="text-sm font-medium text-card-foreground">Benutzerdefinierte Farbe</h4>
-											<ColorPicker 
-												bind:hex={customColor}
-												position="responsive"
-												isDialog={false}
-												--picker-height="120px"
-												--picker-width="200px"
-												--slider-width="20px"
-												--cp-bg-color="hsl(var(--card))"
-												--cp-border-color="hsl(var(--border))"
-												--cp-text-color="hsl(var(--card-foreground))"
-												--cp-input-color="hsl(var(--input))"
-												--cp-button-hover-color="hsl(var(--accent))"
-											/>
-											<Button 
-												onclick={() => {
-													newReminder.color = customColor;
-													showColorPicker = false;
-												}}
-												class="w-full bg-primary hover:bg-primary/90 text-primary-foreground"
-											>
-												Farbe übernehmen
-											</Button>
-										</div>
-									</Popover.Content>
-								</Popover.Root>
-							{/if}
-					</div>
-				</fieldset>
-
-				<div class="flex gap-6 pt-8">
-					<Button 
-						onclick={showEditForm ? updateReminder : createReminder}
-						class="flex-1 bg-primary hover:bg-primary/90 text-primary-foreground py-4 rounded-xl text-subheading transition-all duration-300 hover:scale-105 hover:shadow-lg border-0"
-					>
-						<Bell class="w-5 h-5 mr-3" />
-						{showEditForm ? 'Erinnerung aktualisieren' : 'Erinnerung erstellen'}
-					</Button>
-					<Button 
-						onclick={() => {
-			const formContainer = document.querySelector('.form-container');
-			if (formContainer) {
-				formContainer.classList.add('closing');
-			}
-			
-			setTimeout(() => {
-				showCreateForm = false;
-				showEditForm = false;
-				resetForm();
-				cancelEdit();
-			}, 600);
-			
-			setTimeout(() => {
-				const contentScroll = document.getElementById('content-scroll');
-				if (contentScroll) {
-					contentScroll.style.scrollBehavior = 'smooth';
-					contentScroll.scrollTop = 0;
-				}
-			}, 700);
-		}}
-						variant="outline"
-						class="flex-1 border-2 border-border text-muted-foreground hover:bg-destructive/10 hover:text-destructive py-4 rounded-xl text-subheading transition-all duration-300 hover:scale-105 hover:border-destructive"
-					>
-						Abbrechen
-					</Button>
-				</div>
-			</Content>
-			</Card>
-		</div>
-	{/if}
+		<!-- Reminder Dialog -->
+		<ReminderDialog
+			bind:open={showDialog}
+			mode={dialogMode}
+			initialData={editingReminder}
+			onsave={handleDialogSave}
+			onclose={() => {
+				showDialog = false;
+				editingReminder = null;
+			}}
+		/>
 
 	<div class="grid gap-6 transition-all duration-800" style="transition-timing-function: cubic-bezier(0.25, 0.46, 0.45, 0.94);">
 		{#if $reminders.length === 0}
