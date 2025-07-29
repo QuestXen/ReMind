@@ -74,8 +74,6 @@
 			settings.set(appSettings);
 			reminders.set(loadedReminders);
 
-			await new Promise((resolve) => setTimeout(resolve, 300));
-
 			isLoading.set(false);
 			retryCount = 0;
 			updateStatus = 'done';
