@@ -1,6 +1,7 @@
 <script lang="ts">
 	import { onMount } from 'svelte';
 	import { invoke } from '@tauri-apps/api/core';
+	import { listen } from '@tauri-apps/api/event';
 	import ReminderApp from '$lib/components/ReminderApp.svelte';
 	import Loading from '$lib/components/Loading.svelte';
 	import { reminders, settings, isLoading, loadingError } from '$lib/stores';
@@ -8,14 +9,22 @@
 
 	let retryCount = 0;
 	const MAX_RETRIES = 3;
-	let updateStatus = $state('checking');
+	let updateStatus = $state('checking'); // 'checking', 'updating', 'done'
 	let updateMessage = $state('Update Checken...');
+	let trayUpdateTriggered = $state(false);
 
 	interface UpdateInfo {
 		available: boolean;
 		version?: string;
 		notes?: string;
 		pubDate?: string;
+	}
+
+	interface LoadedSettings {
+		autostart_enabled?: boolean;
+		theme?: string | null;
+		notification_sound?: boolean;
+		[key: string]: unknown;
 	}
 
 	async function checkForUpdates(): Promise<UpdateInfo | null> {
@@ -42,14 +51,6 @@
 			console.error('Failed to install update:', error);
 			return false;
 		}
-	}
-
-
-	interface LoadedSettings {
-		autostart_enabled?: boolean;
-		theme?: string | null;
-		notification_sound?: boolean;
-		[key: string]: unknown; 
 	}
 
 	async function loadAppData() {
@@ -103,32 +104,85 @@
 		}
 	}
 
-	onMount(async () => {
-		const updateInfo = await checkForUpdates();
+	onMount(() => {
+		// Store cleanup functions
+		let unlistenUpdateStart: (() => void) | undefined;
+		let unlistenUpdateInstalling: (() => void) | undefined;
+		let unlistenUpdateNotAvailable: (() => void) | undefined;
+		let unlistenUpdateError: (() => void) | undefined;
 
-		if (updateInfo?.available) {
-			console.log(`Update available: ${updateInfo.version}`);
-			updateMessage = `Update ${updateInfo.version} verfügbar. Installation wird gestartet...`;
+		// Async initialization function
+		async function initializeApp() {
+			// Listen for tray update events
+			unlistenUpdateStart = await listen('update-check-started', () => {
+				trayUpdateTriggered = true;
+				updateStatus = 'checking';
+				updateMessage = 'Update wird geprüft...';
+				isLoading.set(true);
+			});
 
-			await new Promise((resolve) => setTimeout(resolve, 1000));
+			unlistenUpdateInstalling = await listen('update-installing', (event) => {
+				updateStatus = 'updating';
+				const updateInfo = event.payload as UpdateInfo;
+				updateMessage = `Update ${updateInfo.version} wird installiert...`;
+			});
 
-			const updateSuccess = await installUpdate();
-
-			if (!updateSuccess) {
+			unlistenUpdateNotAvailable = await listen('update-not-available', () => {
 				updateStatus = 'done';
-				loadAppData();
+				updateMessage = 'Keine Updates verfügbar';
+				setTimeout(() => {
+					isLoading.set(false);
+					trayUpdateTriggered = false;
+				}, 2000);
+			});
+
+			unlistenUpdateError = await listen('update-error', (event) => {
+				updateStatus = 'done';
+				loadingError.set(`Update-Fehler: ${event.payload}`);
+				isLoading.set(false);
+				trayUpdateTriggered = false;
+			});
+
+			// Initial app startup logic
+			if (!trayUpdateTriggered) {
+				const updateInfo = await checkForUpdates();
+
+				if (updateInfo?.available) {
+					console.log(`Update available: ${updateInfo.version}`);
+					updateMessage = `Update ${updateInfo.version} verfügbar. Installation wird gestartet...`;
+
+					await new Promise((resolve) => setTimeout(resolve, 1000));
+
+					const updateSuccess = await installUpdate();
+
+					if (!updateSuccess) {
+						updateStatus = 'done';
+						loadAppData();
+					}
+				} else {
+					updateStatus = 'done';
+					loadAppData();
+				}
 			}
-		} else {
-			updateStatus = 'done';
-			loadAppData();
 		}
+
+		// Start async initialization
+		initializeApp().catch(console.error);
+
+		// Return cleanup function
+		return () => {
+			unlistenUpdateStart?.();
+			unlistenUpdateInstalling?.();
+			unlistenUpdateNotAvailable?.();
+			unlistenUpdateError?.();
+		};
 	});
 </script>
 
 <main class="bg-background min-h-screen">
-	{#if $isLoading || updateStatus !== 'done'}
+	{#if $isLoading || updateStatus !== 'done' || trayUpdateTriggered}
 		<Loading
-			message={updateStatus === 'done' ? 'Lade Erinnerungen und Einstellungen' : updateMessage}
+			message={trayUpdateTriggered ? updateMessage : (updateStatus === 'done' ? 'Lade Erinnerungen und Einstellungen' : updateMessage)}
 			error={$loadingError}
 			retryCallback={$loadingError ? retryLoading : undefined}
 			isUpdating={updateStatus === 'updating'}

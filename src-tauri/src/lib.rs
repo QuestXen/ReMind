@@ -10,7 +10,7 @@ use commands::notifications::{
     test_notification_with_settings
 };
 use commands::system_info::get_system_info;
-use commands::tray::{handle_window_event, hide_window, quit_app, setup_system_tray, show_window};
+use commands::tray::{handle_window_event, hide_window, quit_app, setup_system_tray, show_window, check_update_from_tray};
 use commands::updater::{check_for_updates, install_update, check_and_install_update};
 use tauri::Manager;
 
@@ -32,10 +32,8 @@ pub fn run() {
                 )?;
             }
 
-            // Setup system tray
             setup_system_tray(&app.handle()).expect("Failed to setup system tray");
 
-            // Get the main window and inject script to disable context menu
             if let Some(window) = app.get_webview_window("main") {
                 let _ = window.eval(
                     r#"
@@ -93,7 +91,6 @@ pub fn run() {
         })
         .plugin(tauri_plugin_notification::init())
         .plugin(tauri_plugin_single_instance::init(|app, _argv, _cwd| {
-            // Wenn eine zweite Instanz gestartet wird, zeige das Hauptfenster
             if let Some(window) = app.get_webview_window("main") {
                 let _ = window.show();
                 let _ = window.set_focus();
@@ -126,6 +123,7 @@ pub fn run() {
             show_window,
             hide_window,
             quit_app,
+            check_update_from_tray,
             check_for_updates,
             install_update,
             check_and_install_update

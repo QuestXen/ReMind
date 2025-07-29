@@ -4,7 +4,6 @@ use std::fs;
 use std::path::PathBuf;
 use tauri::{AppHandle, Manager};
 
-// Current data format version
 const CURRENT_DATA_VERSION: u32 = 2;
 
 // Version history:

@@ -77,7 +77,3 @@ fn get_windows_version() -> String {
     "Windows".to_string()
 }
 
-#[cfg(not(target_os = "windows"))]
-fn get_windows_version() -> String {
-    "Unknown".to_string()
-}

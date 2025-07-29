@@ -508,7 +508,7 @@
 		console.table(status.timers);
 		return status;
 	}
-	// Typsichere Debug-Interface Definition
+
 	interface DebugWindow extends Window {
 		getTimerStatus?: () => any;
 		clearAllTimers?: () => void;
@@ -681,6 +681,7 @@
 											<Input
 												id="reminder-name"
 												bind:value={editingReminder!.name}
+												autocomplete="off"
 												placeholder="z.B. Medikamente nehmen, Meeting vorbereiten..."
 												class="border-border focus:border-ring focus:ring-ring bg-input focus:bg-background text-body text-foreground h-12 w-full rounded-xl px-4 transition-all duration-300"
 											/>
@@ -688,6 +689,7 @@
 											<Input
 												id="reminder-name"
 												bind:value={newReminder.name}
+												autocomplete="off"
 												placeholder="z.B. Medikamente nehmen, Wasser trinken..."
 												class="border-border focus:border-ring focus:ring-ring bg-input focus:bg-background text-body text-foreground h-12 w-full rounded-xl px-4 transition-all duration-300"
 											/>
@@ -759,6 +761,7 @@
 													<Input
 														id="reminder-interval-value"
 														type="number"
+														autocomplete="off"
 														bind:value={editingReminder.intervalValue}
 														min="1"
 														class="border-border focus:border-ring focus:ring-ring bg-input focus:bg-background text-body text-foreground h-10 w-full rounded-xl px-4 transition-all duration-300"
