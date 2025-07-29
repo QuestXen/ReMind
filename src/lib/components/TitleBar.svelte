@@ -11,18 +11,17 @@
 
 	let { title, icon, showWindowControls = true, useLogoIcon = false }: Props = $props();
 
-	let appWindow: any = null;
+	let appWindow: ReturnType<typeof getCurrentWindow> | null = null;
 	try {
 		appWindow = getCurrentWindow();
 	} catch (error) {
-
+		console.error('Failed to get current window:', error);
 	}
 
 	const minimize = () => appWindow?.minimize();
 	const toggleMaximize = () => appWindow?.toggleMaximize();
 	const close = () => appWindow?.close();
 </script>
-
 
 <div
 	class="bg-background border-border flex flex-shrink-0 items-center justify-between border-b p-4 select-none"
@@ -31,18 +30,18 @@
 	role="button"
 	tabindex="0"
 >
-
 	<div class="flex items-center gap-3">
-		<div class="bg-background flex h-6 w-6 items-center justify-center rounded-full overflow-hidden">
+		<div
+			class="bg-background flex h-6 w-6 items-center justify-center overflow-hidden rounded-full"
+		>
 			{#if useLogoIcon}
-				<img src={logoImage} alt="ReMind Logo" class="h-6 w-6 object-cover rounded-full" />
+				<img src={logoImage} alt="ReMind Logo" class="h-6 w-6 rounded-full object-cover" />
 			{:else}
 				<span class="text-primary-foreground text-xs font-bold">{icon}</span>
 			{/if}
 		</div>
 		<span class="text-foreground font-medium">{title}</span>
 	</div>
-
 
 	{#if showWindowControls}
 		<div class="flex items-center gap-2" data-tauri-drag-region="false">
@@ -84,7 +83,6 @@
 </div>
 
 <style>
-
 	[data-tauri-drag-region] {
 		-webkit-app-region: drag;
 	}

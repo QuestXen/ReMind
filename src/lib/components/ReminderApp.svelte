@@ -1,6 +1,6 @@
 <script lang="ts">
 	import { Button } from '$lib/components/ui/button/index';
-	import { Card, Header, Title, Content } from '$lib/components/ui/card/index';
+	import { Card, Content } from '$lib/components/ui/card/index';
 	import { Input } from '$lib/components/ui/input/index';
 	import * as Select from '$lib/components/ui/select/index';
 	import * as DropdownMenu from '$lib/components/ui/dropdown-menu/index';
@@ -8,14 +8,29 @@
 	import * as Popover from '$lib/components/ui/popover/index';
 	import { getLocalTimeZone, today, parseDate } from '@internationalized/date';
 	import { invoke } from '@tauri-apps/api/core';
-	import { Plus, Bell, Trash2, Calendar as CalendarIcon, Clock, Edit, Settings, Palette } from '@lucide/svelte';
+	import {
+		Plus,
+		Bell,
+		Trash2,
+		Calendar as CalendarIcon,
+		Clock,
+		Edit,
+		Settings,
+		Palette
+	} from '@lucide/svelte';
 	import { onMount, onDestroy } from 'svelte';
-	
+
 	import ColorPicker from 'svelte-awesome-color-picker';
 	import SettingsComponent from './Settings.svelte';
 	import TitleBar from './TitleBar.svelte';
-	import { reminders, addReminder, updateReminder as updateReminderStore, deleteReminderFromStore } from '$lib/stores';
+	import {
+		reminders,
+		addReminder,
+		updateReminder as updateReminderStore,
+		deleteReminderFromStore
+	} from '$lib/stores';
 	import type { Reminder, ReminderInterval, ReminderColor } from '$lib/stores';
+	import { SvelteDate, SvelteMap } from 'svelte/reactivity';
 
 	let showCreateForm = $state(false);
 	let showEditForm = $state(false);
@@ -32,15 +47,18 @@
 
 	let showColorPicker = $state(false);
 	let showEditColorPicker = $state(false);
-	let customColor = $state('#7f5af0'); 
+	let customColor = $state('#7f5af0');
 	let editCustomColor = $state('#7f5af0');
 
-	let reminderTimers = new Map<string, {
-		timerId: NodeJS.Timeout;
-		nextExecution: Date;
-		isActive: boolean;
-	}>();
-	
+	let reminderTimers = new SvelteMap<
+		string,
+		{
+			timerId: NodeJS.Timeout;
+			nextExecution: Date;
+			isActive: boolean;
+		}
+	>();
+
 	let timerCleanupInterval: NodeJS.Timeout | null = null;
 	let timeUpdateInterval: NodeJS.Timeout | null = null;
 	let timeUpdateTrigger = $state(0);
@@ -99,21 +117,25 @@
 
 	let newReminderCalendarValue = $state(today(getLocalTimeZone()));
 	let editReminderCalendarValue = $state(today(getLocalTimeZone()));
-	
+
 	let newReminderPopoverOpen = $state(false);
 	let editReminderPopoverOpen = $state(false);
 
 	const newReminderTriggerContent = $derived(
-		intervalOptions.find((option) => option.value === newReminder.interval)?.label ?? 'Intervall wählen'
+		intervalOptions.find((option) => option.value === newReminder.interval)?.label ??
+			'Intervall wählen'
 	);
 
 	const editReminderTriggerContent = $derived(
-		editingReminder ? intervalOptions.find((option) => option.value === editingReminder!.interval)?.label ?? 'Intervall wählen' : 'Intervall wählen'
+		editingReminder
+			? (intervalOptions.find((option) => option.value === editingReminder!.interval)?.label ??
+					'Intervall wählen')
+			: 'Intervall wählen'
 	);
 
 	async function createReminder() {
 		if (!newReminder.name.trim()) return;
-		
+
 		const reminder: Reminder = {
 			id: crypto.randomUUID(),
 			name: newReminder.name,
@@ -125,7 +147,7 @@
 			createdAt: new Date().toISOString(),
 			active: true
 		};
-		
+
 		try {
 			await invoke('add_reminder', { reminder });
 			addReminder(reminder);
@@ -134,14 +156,14 @@
 			setTimeout(() => {
 				const newReminderElement = document.getElementById(`reminder-${reminder.id}`);
 				if (newReminderElement) {
-					newReminderElement.scrollIntoView({ 
-						behavior: 'smooth', 
+					newReminderElement.scrollIntoView({
+						behavior: 'smooth',
 						block: 'center',
 						inline: 'nearest'
 					});
 				}
 			}, 500);
-			
+
 			startReminderTimer(reminder);
 		} catch (error) {
 			console.error('Failed to create reminder:', error);
@@ -179,7 +201,7 @@
 
 	function startEditReminder(reminder: Reminder) {
 		editingReminder = { ...reminder };
-		
+
 		if (reminder.interval === 'specific' && reminder.specificDate) {
 			try {
 				const [datePart, timePart] = reminder.specificDate.split('T');
@@ -203,7 +225,7 @@
 		showEditForm = true;
 		showCreateForm = false;
 		editReminderPopoverOpen = false;
-		
+
 		setTimeout(() => {
 			const formElement = document.getElementById('create-form');
 			if (formElement) {
@@ -220,13 +242,13 @@
 	async function updateReminder() {
 		if (!editingReminder || !editingReminder.name.trim()) return;
 		clearReminderTimer(editingReminder.id);
-		
+
 		try {
 			await invoke('update_reminder', { reminder: editingReminder });
-			
+
 			updateReminderStore(editingReminder);
 			startReminderTimer(editingReminder);
-			
+
 			const updatedReminderId = editingReminder.id;
 			const updatedReminderName = editingReminder.name;
 			showEditForm = false;
@@ -240,12 +262,12 @@
 						const elementTop = updatedReminderElement.offsetTop;
 						const elementHeight = updatedReminderElement.offsetHeight;
 						const containerHeight = contentScroll.clientHeight;
-						const scrollTop = elementTop - (containerHeight / 2) + (elementHeight / 2);
+						const scrollTop = elementTop - containerHeight / 2 + elementHeight / 2;
 						contentScroll.scrollTop = Math.max(0, scrollTop);
 					}
 				}
 			}, 400);
-			
+
 			console.log(`Updated reminder: ${updatedReminderName}`);
 		} catch (error) {
 			console.error('Failed to update reminder:', error);
@@ -272,27 +294,27 @@
 
 	async function deleteReminder(id: string) {
 		clearReminderTimer(id);
-		
+
 		const reminderElement = document.getElementById(`reminder-${id}`);
 		if (reminderElement) {
 			const animationStyles = ['animate-delete-scale-rotate', 'animate-delete-slide-out'];
 			const randomAnimation = animationStyles[Math.floor(Math.random() * animationStyles.length)];
-			
+
 			reminderElement.classList.add(randomAnimation);
 			const allReminders = document.querySelectorAll('[id^="reminder-"]');
 			let foundTarget = false;
 			allReminders.forEach((element) => {
 				if (foundTarget && element !== reminderElement) {
 					element.classList.add('animate-smooth-move-up');
-				setTimeout(() => {
-					element.classList.remove('animate-smooth-move-up');
-				}, 800);
+					setTimeout(() => {
+						element.classList.remove('animate-smooth-move-up');
+					}, 800);
 				}
 				if (element === reminderElement) {
 					foundTarget = true;
 				}
 			});
-			
+
 			setTimeout(async () => {
 				try {
 					await invoke('delete_reminder', { reminderId: id });
@@ -304,7 +326,7 @@
 						reminderElement.classList.remove(randomAnimation);
 					}
 				}
-			}, 800); 
+			}, 800);
 		} else {
 			try {
 				await invoke('delete_reminder', { reminderId: id });
@@ -318,11 +340,11 @@
 
 	async function toggleReminderActive(reminder: Reminder) {
 		const updatedReminder = { ...reminder, active: !reminder.active };
-		
+
 		try {
 			await invoke('update_reminder', { reminder: updatedReminder });
 			updateReminderStore(updatedReminder);
-			
+
 			if (updatedReminder.active) {
 				startReminderTimer(updatedReminder);
 				console.log(`Activated reminder: ${updatedReminder.name}`);
@@ -335,34 +357,32 @@
 		}
 	}
 
-
-
 	function startReminderTimer(reminder: Reminder) {
 		if (!reminder.active) {
 			console.log(`Skipping timer for inactive reminder: ${reminder.name}`);
 			return;
 		}
-		
+
 		clearReminderTimer(reminder.id);
-		
+
 		const now = new Date();
 		let nextExecution: Date;
-		
+
 		switch (reminder.interval) {
 			case 'minutes':
-				nextExecution = new Date(now.getTime() + reminder.intervalValue * 60 * 1000);
+				nextExecution = new SvelteDate(now.getTime() + reminder.intervalValue * 60 * 1000);
 				break;
 			case 'hours':
-				nextExecution = new Date(now.getTime() + reminder.intervalValue * 60 * 60 * 1000);
+				nextExecution = new SvelteDate(now.getTime() + reminder.intervalValue * 60 * 60 * 1000);
 				break;
 			case 'days':
-				nextExecution = new Date(now.getTime() + reminder.intervalValue * 24 * 60 * 60 * 1000);
+				nextExecution = new SvelteDate(now.getTime() + reminder.intervalValue * 24 * 60 * 60 * 1000);
 				break;
 			case 'weeks':
-				nextExecution = new Date(now.getTime() + reminder.intervalValue * 7 * 24 * 60 * 60 * 1000);
+				nextExecution = new SvelteDate(now.getTime() + reminder.intervalValue * 7 * 24 * 60 * 60 * 1000);
 				break;
 			case 'months':
-				nextExecution = new Date(now);
+				nextExecution = new SvelteDate(now);
 				nextExecution.setMonth(nextExecution.getMonth() + reminder.intervalValue);
 				break;
 			case 'specific':
@@ -370,7 +390,7 @@
 					console.warn(`Reminder ${reminder.id} has no specific date set`);
 					return;
 				}
-				nextExecution = new Date(reminder.specificDate);
+				nextExecution = new SvelteDate(reminder.specificDate);
 				if (nextExecution <= now) {
 					console.warn(`Reminder ${reminder.id} scheduled for past date: ${nextExecution}`);
 					return;
@@ -380,19 +400,21 @@
 				console.error(`Unknown interval type: ${reminder.interval}`);
 				return;
 		}
-		
+
 		const timeUntilExecution = nextExecution.getTime() - now.getTime();
 		if (timeUntilExecution <= 0) {
 			console.warn(`Invalid execution time for reminder ${reminder.id}`);
 			return;
 		}
-		
+
 		if (timeUntilExecution > 2147483647) {
-			console.warn(`Execution time too far in future for reminder ${reminder.id}, scheduling for max timeout`);
+			console.warn(
+				`Execution time too far in future for reminder ${reminder.id}, scheduling for max timeout`
+			);
 			const timerId = setTimeout(() => {
-				startReminderTimer(reminder); 
+				startReminderTimer(reminder);
 			}, 2147483647);
-			
+
 			reminderTimers.set(reminder.id, {
 				timerId,
 				nextExecution,
@@ -400,11 +422,11 @@
 			});
 			return;
 		}
-		
+
 		const timerId = setTimeout(async () => {
 			try {
 				await sendNotification(reminder);
-				
+
 				if (reminder.interval !== 'specific') {
 					startReminderTimer(reminder);
 				} else {
@@ -415,16 +437,18 @@
 				setTimeout(() => startReminderTimer(reminder), 60000);
 			}
 		}, timeUntilExecution);
-		
+
 		reminderTimers.set(reminder.id, {
 			timerId,
 			nextExecution,
 			isActive: true
 		});
-		
-		console.log(`Scheduled reminder "${reminder.name}" for ${nextExecution.toLocaleString('de-DE')}`);
+
+		console.log(
+			`Scheduled reminder "${reminder.name}" for ${nextExecution.toLocaleString('de-DE')}`
+		);
 	}
-	
+
 	function clearReminderTimer(reminderId: string) {
 		const timerInfo = reminderTimers.get(reminderId);
 		if (timerInfo) {
@@ -433,9 +457,9 @@
 			console.log(`Cleared timer for reminder ${reminderId}`);
 		}
 	}
-	
+
 	function clearAllTimers() {
-		reminderTimers.forEach((timerInfo, id) => {
+		reminderTimers.forEach((timerInfo) => {
 			clearTimeout(timerInfo.timerId);
 		});
 		reminderTimers.clear();
@@ -444,13 +468,12 @@
 
 	async function sendNotification(reminder: Reminder) {
 		try {
-			// Verwende die neue Funktion, die automatisch die Einstellungen berücksichtigt
 			await invoke('send_notification_with_settings', {
 				title: 'ReMind',
 				body: `Erinnerung: ${reminder.name}`
 			});
 			console.log(`Notification sent for reminder: ${reminder.name}`);
-			
+
 			const timestamp = new Date().toISOString();
 			await invoke('update_reminder_last_notified', {
 				reminderId: reminder.id,
@@ -467,12 +490,12 @@
 			}
 		}
 	}
-	
+
 	function getTimerStatus() {
 		const status = {
 			activeTimers: reminderTimers.size,
 			timers: Array.from(reminderTimers.entries()).map(([id, timerInfo]) => {
-				const reminder = $reminders.find(r => r.id === id);
+				const reminder = $reminders.find((r) => r.id === id);
 				return {
 					id,
 					name: reminder?.name || 'Unknown',
@@ -485,9 +508,15 @@
 		console.table(status.timers);
 		return status;
 	}
+	// Typsichere Debug-Interface Definition
+	interface DebugWindow extends Window {
+		getTimerStatus?: () => any;
+		clearAllTimers?: () => void;
+	}
+
 	if (typeof window !== 'undefined' && import.meta.env.DEV) {
-		(window as any).getTimerStatus = getTimerStatus;
-		(window as any).clearAllTimers = clearAllTimers;
+		(window as DebugWindow).getTimerStatus = getTimerStatus;
+		(window as DebugWindow).clearAllTimers = clearAllTimers;
 		console.log('Debug functions available: getTimerStatus(), clearAllTimers()');
 	}
 
@@ -498,89 +527,92 @@
 			const timeStr = date.toLocaleTimeString('de-DE', { hour: '2-digit', minute: '2-digit' });
 			return `Am ${dateStr} um ${timeStr}`;
 		}
-	return `Alle ${reminder.intervalValue} ${intervalLabels[reminder.interval]}`;
-}
+		return `Alle ${reminder.intervalValue} ${intervalLabels[reminder.interval]}`;
+	}
 
 	function getTimeUntilNextReminder(reminder: Reminder): string {
-			timeUpdateTrigger;
-			
-			if (!reminder.active) {
-				return '';
-			}
-			
-			const timerInfo = reminderTimers.get(reminder.id);
-			if (!timerInfo) {
-				return '';
-			}
+		void timeUpdateTrigger;
 
-			const now = new Date();
-			const timeUntil = timerInfo.nextExecution.getTime() - now.getTime();
-
-			if (timeUntil <= 0) {
-				return '';
-			}
-
-			const days = Math.floor(timeUntil / (1000 * 60 * 60 * 24));
-			const hours = Math.floor((timeUntil % (1000 * 60 * 60 * 24)) / (1000 * 60 * 60));
-			const minutes = Math.floor((timeUntil % (1000 * 60 * 60)) / (1000 * 60));
-			const seconds = Math.floor((timeUntil % (1000 * 60)) / 1000);
-
-			if (days > 0) {
-				if (hours > 0) {
-					return `in ${days} Tag${days > 1 ? 'en' : ''} und ${hours} Stunde${hours > 1 ? 'n' : ''}`;
-				} else {
-					return `in ${days} Tag${days > 1 ? 'en' : ''}`;
-				}
-			} else if (hours > 0) {
-				if (minutes > 0) {
-					return `in ${hours} Stunde${hours > 1 ? 'n' : ''} und ${minutes} Minute${minutes > 1 ? 'n' : ''}`;
-				} else {
-					return `in ${hours} Stunde${hours > 1 ? 'n' : ''}`;
-				}
-			} else if (minutes > 0) {
-				return `in ${minutes} Minute${minutes > 1 ? 'n' : ''}`;
-			} else if (seconds > 0) {
-				return `in ${seconds} Sekunde${seconds > 1 ? 'n' : ''}`;
-			} else {
-				return 'in wenigen Sekunden';
-			}
+		if (!reminder.active) {
+			return '';
 		}
 
-onMount(() => {
+		const timerInfo = reminderTimers.get(reminder.id);
+		if (!timerInfo) {
+			return '';
+		}
+
+		const now = new Date();
+		const timeUntil = timerInfo.nextExecution.getTime() - now.getTime();
+
+		if (timeUntil <= 0) {
+			return '';
+		}
+
+		const days = Math.floor(timeUntil / (1000 * 60 * 60 * 24));
+		const hours = Math.floor((timeUntil % (1000 * 60 * 60 * 24)) / (1000 * 60 * 60));
+		const minutes = Math.floor((timeUntil % (1000 * 60 * 60)) / (1000 * 60));
+		const seconds = Math.floor((timeUntil % (1000 * 60)) / 1000);
+
+		if (days > 0) {
+			if (hours > 0) {
+				return `in ${days} Tag${days > 1 ? 'en' : ''} und ${hours} Stunde${hours > 1 ? 'n' : ''}`;
+			} else {
+				return `in ${days} Tag${days > 1 ? 'en' : ''}`;
+			}
+		} else if (hours > 0) {
+			if (minutes > 0) {
+				return `in ${hours} Stunde${hours > 1 ? 'n' : ''} und ${minutes} Minute${minutes > 1 ? 'n' : ''}`;
+			} else {
+				return `in ${hours} Stunde${hours > 1 ? 'n' : ''}`;
+			}
+		} else if (minutes > 0) {
+			return `in ${minutes} Minute${minutes > 1 ? 'n' : ''}`;
+		} else if (seconds > 0) {
+			return `in ${seconds} Sekunde${seconds > 1 ? 'n' : ''}`;
+		} else {
+			return 'in wenigen Sekunden';
+		}
+	}
+
+	onMount(() => {
 		let isInitialLoad = true;
-		
-		const unsubscribe = reminders.subscribe(currentReminders => {
+
+		const unsubscribe = reminders.subscribe((currentReminders) => {
 			if (isInitialLoad) {
 				clearAllTimers();
-				
-				currentReminders.forEach(reminder => {
+
+				currentReminders.forEach((reminder) => {
 					startReminderTimer(reminder);
 				});
-				
+
 				console.log(`Initialized ${currentReminders.length} reminders with timers`);
 				isInitialLoad = false;
 			}
 		});
-		
-		timerCleanupInterval = setInterval(() => {
-			const now = new Date();
-			reminderTimers.forEach((timerInfo, id) => {
-				if (timerInfo.nextExecution <= now && !timerInfo.isActive) {
-					clearReminderTimer(id);
-				}
-			});
-		}, 5 * 60 * 1000);
-		
+
+		timerCleanupInterval = setInterval(
+			() => {
+				const now = new Date();
+				reminderTimers.forEach((timerInfo, id) => {
+					if (timerInfo.nextExecution <= now && !timerInfo.isActive) {
+						clearReminderTimer(id);
+					}
+				});
+			},
+			5 * 60 * 1000
+		);
+
 		timeUpdateInterval = setInterval(() => {
 			timeUpdateTrigger++;
-		}, 1000); 
-		
+		}, 1000);
+
 		return () => {
 			unsubscribe();
 		};
 	});
 
-onDestroy(() => {
+	onDestroy(() => {
 		clearAllTimers();
 		if (timerCleanupInterval) {
 			clearInterval(timerCleanupInterval);
@@ -591,6 +623,660 @@ onDestroy(() => {
 		console.log('ReminderApp component destroyed, all timers cleared');
 	});
 </script>
+
+{#if showSettings}
+	<SettingsComponent on:close={closeSettings} />
+{:else}
+	<div class="flex h-screen flex-col overflow-hidden">
+		<TitleBar title="Re:Mind" icon="R" useLogoIcon={true} />
+
+		<div
+			id="content-scroll"
+			class="bg-background relative flex-1 overflow-y-auto {showSettings
+				? 'animate-slide-out-left'
+				: 'animate-slide-in-left'}"
+		>
+			<div class="p-6">
+				<div class="mx-auto max-w-4xl">
+					<div class="mb-12 flex justify-center">
+						<Button
+							onclick={() => {
+								showCreateForm = true;
+								setTimeout(() => {
+									const createFormElement = document.getElementById('create-form');
+									if (createFormElement) {
+										const contentScroll = document.getElementById('content-scroll');
+										if (contentScroll) {
+											contentScroll.style.scrollBehavior = 'smooth';
+											const elementTop = createFormElement.offsetTop;
+											contentScroll.scrollTop = Math.max(0, elementTop - 20);
+										}
+									}
+								}, 200);
+							}}
+							class="bg-primary hover:bg-primary/90 text-primary-foreground text-subheading rounded-2xl border-0 px-8 py-4 shadow-lg transition-all duration-300 hover:scale-105 hover:shadow-xl"
+						>
+							<Plus class="mr-3 h-5 w-5" />
+							Neue Erinnerung
+						</Button>
+					</div>
+
+					{#if showCreateForm || showEditForm}
+						<div class="form-container">
+							<Card
+								id="create-form"
+								class="bg-card border-border animate-slide-up mb-12 overflow-hidden rounded-3xl border shadow-xl"
+							>
+								<Content class="space-y-8 p-8">
+									<h2 class="text-heading text-card-foreground mb-6 text-3xl">
+										{showEditForm ? 'Erinnerung bearbeiten' : 'Neue Erinnerung erstellen'}
+									</h2>
+									<div class="transition-all duration-300">
+										<label
+											for="reminder-name"
+											class="text-subheading text-card-foreground mb-3 block text-sm"
+											>Erinnerungsname</label
+										>
+										{#if showEditForm}
+											<Input
+												id="reminder-name"
+												bind:value={editingReminder!.name}
+												placeholder="z.B. Medikamente nehmen, Meeting vorbereiten..."
+												class="border-border focus:border-ring focus:ring-ring bg-input focus:bg-background text-body text-foreground h-12 w-full rounded-xl px-4 transition-all duration-300"
+											/>
+										{:else}
+											<Input
+												id="reminder-name"
+												bind:value={newReminder.name}
+												placeholder="z.B. Medikamente nehmen, Wasser trinken..."
+												class="border-border focus:border-ring focus:ring-ring bg-input focus:bg-background text-body text-foreground h-12 w-full rounded-xl px-4 transition-all duration-300"
+											/>
+										{/if}
+									</div>
+
+									<div class="grid grid-cols-1 gap-8 md:grid-cols-2">
+										<div class="transition-all duration-300">
+											<label
+												for="reminder-interval"
+												class="text-subheading text-card-foreground mb-3 block text-sm"
+												>Intervall</label
+											>
+											{#if showEditForm && editingReminder}
+												<Select.Root
+													type="single"
+													name="editReminderInterval"
+													bind:value={editingReminder.interval}
+												>
+													<Select.Trigger
+														class="bg-input border-border text-foreground focus:border-ring focus:ring-ring/20 hover:border-ring/50 flex h-12 w-full items-center rounded-xl border px-4 transition-all duration-300 focus:ring-4"
+													>
+														{editReminderTriggerContent}
+													</Select.Trigger>
+													<Select.Content>
+														<Select.Group>
+															<Select.Label>Intervall wählen</Select.Label>
+															{#each intervalOptions as option (option.value)}
+																<Select.Item value={option.value} label={option.label}>
+																	{option.label}
+																</Select.Item>
+															{/each}
+														</Select.Group>
+													</Select.Content>
+												</Select.Root>
+											{:else}
+												<Select.Root
+													type="single"
+													name="newReminderInterval"
+													bind:value={newReminder.interval}
+												>
+													<Select.Trigger
+														class="bg-input border-border text-foreground focus:border-ring focus:ring-ring/20 hover:border-ring/50 flex h-12 w-full items-center rounded-xl border px-4 transition-all duration-300 focus:ring-4"
+													>
+														{newReminderTriggerContent}
+													</Select.Trigger>
+													<Select.Content>
+														<Select.Group>
+															<Select.Label>Intervall wählen</Select.Label>
+															{#each intervalOptions as option (option.value)}
+																<Select.Item value={option.value} label={option.label}>
+																	{option.label}
+																</Select.Item>
+															{/each}
+														</Select.Group>
+													</Select.Content>
+												</Select.Root>
+											{/if}
+										</div>
+
+										{#if showEditForm && editingReminder}
+											{#if editingReminder.interval !== 'specific'}
+												<div class="transition-all duration-300">
+													<label
+														for="reminder-interval-value"
+														class="text-subheading text-card-foreground mb-3 block text-sm"
+														>Anzahl</label
+													>
+													<Input
+														id="reminder-interval-value"
+														type="number"
+														bind:value={editingReminder.intervalValue}
+														min="1"
+														class="border-border focus:border-ring focus:ring-ring bg-input focus:bg-background text-body text-foreground h-10 w-full rounded-xl px-4 transition-all duration-300"
+													/>
+												</div>
+											{:else}
+												<div class="space-y-4 transition-all duration-300">
+													<div>
+														<label
+															for="reminder-specific-date"
+															class="text-subheading text-card-foreground mb-3 block text-sm"
+															>Datum wählen</label
+														>
+														<Popover.Root bind:open={editReminderPopoverOpen}>
+															<Popover.Trigger
+																class="border-border hover:bg-accent bg-input border-border text-foreground focus:border-ring focus:ring-ring/20 hover:border-ring/50 flex h-10 w-full items-center justify-start rounded-xl border px-4 text-left font-normal transition-all duration-300 focus:ring-4"
+															>
+																<CalendarIcon class="mr-2 h-4 w-4" />
+																{editReminderCalendarValue
+																	? editReminderCalendarValue
+																			.toDate(getLocalTimeZone())
+																			.toLocaleDateString('de-DE')
+																	: 'Datum auswählen'}
+															</Popover.Trigger>
+															<Popover.Content class="w-auto p-0" align="start">
+																<Calendar
+																	type="single"
+																	bind:value={editReminderCalendarValue}
+																	class="rounded-md border-0"
+																	captionLayout="dropdown"
+																	locale="de-DE"
+																	minValue={today(getLocalTimeZone())}
+																	onValueChange={() => (editReminderPopoverOpen = false)}
+																/>
+															</Popover.Content>
+														</Popover.Root>
+													</div>
+													<div>
+														<label
+															for="reminder-specific-time"
+															class="text-subheading text-card-foreground mb-3 block text-sm"
+															>Uhrzeit</label
+														>
+														<DropdownMenu.Root>
+															<DropdownMenu.Trigger
+																class="border-border hover:bg-accent bg-input border-border text-foreground focus:border-ring focus:ring-ring/20 hover:border-ring/50 flex h-10 w-full items-center justify-start rounded-xl border px-4 text-left font-normal transition-all duration-300 focus:ring-4"
+															>
+																<Clock class="mr-2 h-4 w-4" />
+																{editingReminder?.specificTime || 'Uhrzeit wählen'}
+															</DropdownMenu.Trigger>
+															<DropdownMenu.Content class="max-h-60 w-48 overflow-y-auto">
+																<DropdownMenu.Group>
+																	<DropdownMenu.Label>Uhrzeit auswählen</DropdownMenu.Label>
+																	{#each timeOptions as timeOption (timeOption.value)}
+																		<DropdownMenu.Item
+																			onclick={() => {
+																				if (editingReminder)
+																					editingReminder.specificTime = timeOption.value;
+																			}}
+																		>
+																			{timeOption.label}
+																		</DropdownMenu.Item>
+																	{/each}
+																</DropdownMenu.Group>
+															</DropdownMenu.Content>
+														</DropdownMenu.Root>
+													</div>
+												</div>
+											{/if}
+										{:else if newReminder.interval !== 'specific'}
+											<div class="transition-all duration-300">
+												<label
+													for="new-reminder-interval-value"
+													class="text-subheading text-card-foreground mb-3 block text-sm"
+													>Anzahl</label
+												>
+												<Input
+													id="new-reminder-interval-value"
+													type="number"
+													bind:value={newReminder.intervalValue}
+													min="1"
+													class="border-border focus:border-ring focus:ring-ring bg-input focus:bg-background text-body text-foreground h-10 w-full rounded-xl px-4 transition-all duration-300"
+												/>
+											</div>
+										{:else}
+											<div class="space-y-4 transition-all duration-300">
+												<div>
+													<label
+														for="new-reminder-specific-date"
+														class="text-subheading text-card-foreground mb-3 block text-sm"
+														>Datum wählen</label
+													>
+													<Popover.Root bind:open={newReminderPopoverOpen}>
+														<Popover.Trigger
+															class="border-border hover:bg-accent bg-input border-border text-foreground focus:border-ring focus:ring-ring/20 hover:border-ring/50 flex h-10 w-full items-center justify-start rounded-xl border px-4 text-left font-normal transition-all duration-300 focus:ring-4"
+														>
+															<CalendarIcon class="mr-2 h-4 w-4" />
+															{newReminderCalendarValue
+																? newReminderCalendarValue
+																		.toDate(getLocalTimeZone())
+																		.toLocaleDateString('de-DE')
+																: 'Datum auswählen'}
+														</Popover.Trigger>
+														<Popover.Content class="w-auto p-0" align="start">
+															<Calendar
+																type="single"
+																bind:value={newReminderCalendarValue}
+																class="rounded-md border-0"
+																captionLayout="dropdown"
+																locale="de-DE"
+																minValue={today(getLocalTimeZone())}
+																onValueChange={() => (newReminderPopoverOpen = false)}
+															/>
+														</Popover.Content>
+													</Popover.Root>
+												</div>
+												<div>
+													<label
+														for="new-reminder-specific-time"
+														class="text-subheading text-card-foreground mb-3 block text-sm"
+														>Uhrzeit</label
+													>
+													<DropdownMenu.Root>
+														<DropdownMenu.Trigger
+															class="border-border hover:bg-accent bg-input border-border text-foreground focus:border-ring focus:ring-ring/20 hover:border-ring/50 flex h-10 w-full items-center justify-start rounded-xl border px-4 text-left font-normal transition-all duration-300 focus:ring-4"
+														>
+															<Clock class="mr-2 h-4 w-4" />
+															{newReminder.specificTime || 'Uhrzeit wählen'}
+														</DropdownMenu.Trigger>
+														<DropdownMenu.Content class="max-h-60 w-48 overflow-y-auto">
+															<DropdownMenu.Group>
+																<DropdownMenu.Label>Uhrzeit auswählen</DropdownMenu.Label>
+																{#each timeOptions as timeOption (timeOption.value)}
+																	<DropdownMenu.Item
+																		onclick={() => (newReminder.specificTime = timeOption.value)}
+																	>
+																		{timeOption.label}
+																	</DropdownMenu.Item>
+																{/each}
+															</DropdownMenu.Group>
+														</DropdownMenu.Content>
+													</DropdownMenu.Root>
+												</div>
+											</div>
+										{/if}
+									</div>
+
+									<fieldset class="transition-all duration-300">
+										<legend class="text-subheading text-card-foreground mb-4 block text-sm"
+											>Akzentfarbe wählen</legend
+										>
+										<div class="flex items-center gap-4">
+											{#each Object.entries(colorClasses) as [color, classes]}
+												{#if showEditForm}
+													<button
+														type="button"
+														onclick={() => {
+															if (editingReminder) {
+																editingReminder.color = color as ReminderColor;
+																showEditColorPicker = false;
+															}
+														}}
+														aria-label="Farbe {color} auswählen"
+														class="h-10 w-10 rounded-full {classes} {editingReminder?.color ===
+														color
+															? 'ring-primary scale-110 shadow-lg ring-4'
+															: 'ring-border ring-2'} transition-all duration-300 hover:scale-105 hover:shadow-md"
+													></button>
+												{:else}
+													<button
+														type="button"
+														onclick={() => {
+															newReminder.color = color as ReminderColor;
+															showColorPicker = false;
+														}}
+														aria-label="Farbe {color} auswählen"
+														class="h-10 w-10 rounded-full {classes} {newReminder.color === color
+															? 'ring-primary scale-110 shadow-lg ring-4'
+															: 'ring-border ring-2'} transition-all duration-300 hover:scale-105 hover:shadow-md"
+													></button>
+												{/if}
+											{/each}
+
+											{#if showEditForm}
+												<Popover.Root bind:open={showEditColorPicker}>
+													<Popover.Trigger>
+														<button
+															type="button"
+															aria-label="Benutzerdefinierte Farbe wählen"
+															class="flex h-10 w-10 items-center justify-center overflow-hidden rounded-full transition-all duration-300 hover:scale-105 hover:shadow-md {editingReminder?.color?.startsWith(
+																'#'
+															)
+																? 'ring-primary scale-110 shadow-lg ring-4'
+																: 'ring-border ring-2'}"
+															style={editingReminder?.color?.startsWith('#')
+																? `background: ${editingReminder.color};`
+																: 'background: linear-gradient(45deg, #7f5af0, #50fa7b, #e8a87c, #ff6b6b);'}
+														>
+															{#if !editingReminder?.color?.startsWith('#')}
+																<Palette class="h-4 w-4 text-white drop-shadow-sm" />
+															{/if}
+														</button>
+													</Popover.Trigger>
+													<Popover.Content
+														class="bg-card border-border w-auto rounded-xl border p-4 shadow-xl"
+													>
+														<div class="space-y-3">
+															<h4 class="text-card-foreground text-sm font-medium">
+																Benutzerdefinierte Farbe
+															</h4>
+															<ColorPicker
+																bind:hex={editCustomColor}
+																position="responsive"
+																isDialog={false}
+																--picker-height="120px"
+																--picker-width="200px"
+																--slider-width="20px"
+																--cp-bg-color="hsl(var(--card))"
+																--cp-border-color="hsl(var(--border))"
+																--cp-text-color="hsl(var(--card-foreground))"
+																--cp-input-color="hsl(var(--input))"
+																--cp-button-hover-color="hsl(var(--accent))"
+															/>
+															<Button
+																onclick={() => {
+																	if (editingReminder) {
+																		editingReminder.color = editCustomColor;
+																		showEditColorPicker = false;
+																	}
+																}}
+																class="bg-primary hover:bg-primary/90 text-primary-foreground w-full"
+															>
+																Farbe übernehmen
+															</Button>
+														</div>
+													</Popover.Content>
+												</Popover.Root>
+											{:else}
+												<Popover.Root bind:open={showColorPicker}>
+													<Popover.Trigger>
+														<button
+															type="button"
+															aria-label="Benutzerdefinierte Farbe wählen"
+															class="flex h-10 w-10 items-center justify-center overflow-hidden rounded-full transition-all duration-300 hover:scale-105 hover:shadow-md {newReminder.color?.startsWith(
+																'#'
+															)
+																? 'ring-primary scale-110 shadow-lg ring-4'
+																: 'ring-border ring-2'}"
+															style={newReminder.color?.startsWith('#')
+																? `background: ${newReminder.color};`
+																: 'background: linear-gradient(45deg, #7f5af0, #50fa7b, #e8a87c, #ff6b6b);'}
+														>
+															{#if !newReminder.color?.startsWith('#')}
+																<Palette class="h-4 w-4 text-white drop-shadow-sm" />
+															{/if}
+														</button>
+													</Popover.Trigger>
+													<Popover.Content
+														class="bg-card border-border w-auto rounded-xl border p-4 shadow-xl"
+													>
+														<div class="space-y-3">
+															<h4 class="text-card-foreground text-sm font-medium">
+																Benutzerdefinierte Farbe
+															</h4>
+															<ColorPicker
+																bind:hex={customColor}
+																position="responsive"
+																isDialog={false}
+																--picker-height="120px"
+																--picker-width="200px"
+																--slider-width="20px"
+																--cp-bg-color="hsl(var(--card))"
+																--cp-border-color="hsl(var(--border))"
+																--cp-text-color="hsl(var(--card-foreground))"
+																--cp-input-color="hsl(var(--input))"
+																--cp-button-hover-color="hsl(var(--accent))"
+															/>
+															<Button
+																onclick={() => {
+																	newReminder.color = customColor;
+																	showColorPicker = false;
+																}}
+																class="bg-primary hover:bg-primary/90 text-primary-foreground w-full"
+															>
+																Farbe übernehmen
+															</Button>
+														</div>
+													</Popover.Content>
+												</Popover.Root>
+											{/if}
+										</div>
+									</fieldset>
+
+									<div class="flex gap-6 pt-8">
+										<Button
+											onclick={showEditForm ? updateReminder : createReminder}
+											class="bg-primary hover:bg-primary/90 text-primary-foreground text-subheading flex-1 rounded-xl border-0 py-4 transition-all duration-300 hover:scale-105 hover:shadow-lg"
+										>
+											<Bell class="mr-3 h-5 w-5" />
+											{showEditForm ? 'Erinnerung aktualisieren' : 'Erinnerung erstellen'}
+										</Button>
+										<Button
+											onclick={() => {
+												const formContainer = document.querySelector('.form-container');
+												if (formContainer) {
+													formContainer.classList.add('closing');
+												}
+
+												setTimeout(() => {
+													showCreateForm = false;
+													showEditForm = false;
+													resetForm();
+													cancelEdit();
+												}, 600);
+
+												setTimeout(() => {
+													const contentScroll = document.getElementById('content-scroll');
+													if (contentScroll) {
+														contentScroll.style.scrollBehavior = 'smooth';
+														contentScroll.scrollTop = 0;
+													}
+												}, 700);
+											}}
+											variant="outline"
+											class="border-border text-muted-foreground hover:bg-destructive/10 hover:text-destructive text-subheading hover:border-destructive flex-1 rounded-xl border-2 py-4 transition-all duration-300 hover:scale-105"
+										>
+											Abbrechen
+										</Button>
+									</div>
+								</Content>
+							</Card>
+						</div>
+					{/if}
+
+					<div
+						class="grid gap-6 transition-all duration-800"
+						style="transition-timing-function: cubic-bezier(0.25, 0.46, 0.45, 0.94);"
+					>
+						{#if $reminders.length === 0}
+							<Card
+								class="bg-card border-border animate-slide-up-staggered overflow-hidden rounded-3xl border shadow-lg"
+							>
+								<Content class="py-16 text-center">
+									<h3 class="text-heading text-card-foreground mb-3 text-2xl">
+										Noch keine Erinnerungen
+									</h3>
+									<p class="text-muted-foreground text-caption text-lg">
+										Erstelle deine erste Erinnerung
+									</p>
+								</Content>
+							</Card>
+						{:else}
+							{#each $reminders as reminder, index (reminder.id)}
+								<Card
+									id={`reminder-${reminder.id}`}
+									class="bg-card border-border group animate-slide-up-staggered overflow-hidden rounded-3xl border shadow-lg transition-all duration-800 hover:scale-[1.02] hover:shadow-xl"
+									style="animation-delay: {index *
+										0.1}s; will-change: transform, height; transition-timing-function: cubic-bezier(0.25, 0.46, 0.45, 0.94);"
+								>
+									<Content
+										class="p-8 transition-all duration-800"
+										style="transition-timing-function: cubic-bezier(0.25, 0.46, 0.45, 0.94);"
+									>
+										<div class="flex items-center justify-between gap-4">
+											<div class="flex min-w-0 flex-1 items-center gap-6">
+												<div
+													class="h-6 w-6 flex-shrink-0 rounded-full shadow-md transition-all duration-300 group-hover:scale-110 {getColorStyle(
+														reminder.color
+													)}"
+													style={getCustomColorStyle(reminder.color)}
+												></div>
+												<div class="min-w-0 flex-1">
+													<h3 class="text-subheading text-card-foreground mb-3 truncate text-xl">
+														{reminder.name}
+													</h3>
+													<div class="space-y-2">
+														<div class="text-body flex items-center gap-2 text-sm">
+															{#if reminder.interval === 'specific'}
+																<CalendarIcon class="h-4 w-4 flex-shrink-0" />
+															{:else}
+																<Clock class="h-4 w-4 flex-shrink-0" />
+															{/if}
+															<span class="truncate">{formatReminderInfo(reminder)}</span>
+														</div>
+
+														<div
+															class="overflow-hidden transition-all duration-800"
+															style="max-height: {getTimeUntilNextReminder(reminder) &&
+															reminder.active
+																? '80px'
+																: '0px'}; padding-top: {getTimeUntilNextReminder(reminder) &&
+															reminder.active
+																? '8px'
+																: '0px'}; margin-top: {getTimeUntilNextReminder(reminder) &&
+															reminder.active
+																? '8px'
+																: '0px'}; transition-timing-function: cubic-bezier(0.25, 0.46, 0.45, 0.94);"
+														>
+															<div
+																class="text-muted-foreground flex items-start gap-2 pt-2 text-sm transition-opacity duration-800"
+																style="opacity: {getTimeUntilNextReminder(reminder) &&
+																reminder.active
+																	? '1'
+																	: '0'}; transition-timing-function: cubic-bezier(0.25, 0.46, 0.45, 0.94); transition-delay: {getTimeUntilNextReminder(
+																	reminder
+																) && reminder.active
+																	? '0ms'
+																	: '200ms'};"
+															>
+																<div
+																	class="mt-2 h-2 w-2 flex-shrink-0 animate-pulse rounded-full bg-emerald-500"
+																></div>
+																<span class="leading-relaxed break-words">
+																	<span class="font-medium text-emerald-600"
+																		>Nächste Erinnerung</span
+																	><br />
+																	<span class="text-caption"
+																		>{getTimeUntilNextReminder(reminder) || ''}</span
+																	>
+																</span>
+															</div>
+														</div>
+
+														{#if reminder.lastNotified}
+															<div class="text-muted-foreground flex items-center gap-2 text-sm">
+																<div class="h-2 w-2 flex-shrink-0 rounded-full bg-gray-400"></div>
+																<span class="text-caption truncate"
+																	>Zuletzt: {new Date(reminder.lastNotified).toLocaleString(
+																		'de-DE'
+																	)}</span
+																>
+															</div>
+														{/if}
+													</div>
+												</div>
+											</div>
+											<div class="flex items-center gap-3">
+												<div
+													class="flex items-center gap-2 opacity-0 transition-opacity group-hover:opacity-100"
+												>
+													<Button
+														onclick={() => startEditReminder(reminder)}
+														variant="outline"
+														class="border-border text-muted-foreground hover:bg-accent hover:border-primary rounded-xl border-2 p-3 transition-all duration-300"
+													>
+														<Edit class="h-4 w-4" />
+													</Button>
+													<Button
+														onclick={() => deleteReminder(reminder.id)}
+														variant="outline"
+														class="border-destructive/30 text-destructive hover:bg-destructive/10 hover:border-destructive rounded-xl border-2 p-3 transition-all duration-300"
+													>
+														<Trash2 class="h-4 w-4" />
+													</Button>
+												</div>
+
+												<div class="relative">
+													{#if reminder.active}
+														<div
+															class="absolute -bottom-1 left-1/2 h-2 w-12 -translate-x-1/2 transform rounded-full bg-emerald-400/30 blur-sm"
+														></div>
+													{/if}
+													<Button
+														onclick={() => toggleReminderActive(reminder)}
+														variant="outline"
+														class="relative border-2 transition-all duration-500 {reminder.active
+															? 'border-emerald-400/50 bg-gradient-to-r from-emerald-50 to-green-50 text-emerald-600 hover:border-emerald-500'
+															: 'border-slate-300/50 bg-gradient-to-r from-slate-50 to-gray-50 text-slate-400 hover:border-slate-400'} group/toggle rounded-2xl p-3"
+														title={reminder.active
+															? 'Aktiv - Klicken zum Deaktivieren'
+															: 'Inaktiv - Klicken zum Aktivieren'}
+													>
+														<div class="relative h-4 w-8 transition-all duration-500">
+															<div
+																class="absolute inset-0 rounded-full transition-all duration-500 {reminder.active
+																	? 'bg-gradient-to-r from-emerald-400 to-green-500 shadow-inner'
+																	: 'bg-gradient-to-r from-slate-300 to-gray-400 shadow-inner'}"
+															></div>
+
+															<div
+																class="absolute top-0.5 h-3 w-3 transform rounded-full bg-white shadow-lg transition-all duration-500 {reminder.active
+																	? 'translate-x-4 shadow-emerald-300/50'
+																	: 'translate-x-0.5 shadow-slate-400/50'} group-hover/toggle:scale-110"
+															>
+																<div
+																	class="absolute inset-0.5 rounded-full transition-all duration-500 {reminder.active
+																		? 'bg-gradient-to-br from-emerald-200 to-green-300'
+																		: 'bg-gradient-to-br from-slate-200 to-gray-300'}"
+																></div>
+															</div>
+														</div>
+													</Button>
+												</div>
+											</div>
+										</div>
+									</Content>
+								</Card>
+							{/each}
+						{/if}
+					</div>
+				</div>
+			</div>
+		</div>
+	</div>
+{/if}
+
+{#if !showSettings}
+	<div class="fixed right-6 bottom-6 z-50">
+		<Button
+			onclick={openSettings}
+			variant="default"
+			size="icon"
+			class="bg-primary hover:bg-primary/90 text-primary-foreground h-12 w-12 rounded-xl shadow-lg transition-all duration-300 hover:scale-105 hover:shadow-xl"
+		>
+			<Settings class="h-5 w-5" />
+		</Button>
+	</div>
+{/if}
 
 <style>
 	@keyframes fade-in {
@@ -633,8 +1319,6 @@ onDestroy(() => {
 			transform: translateY(-30px) scale(0.9);
 		}
 	}
-
-
 
 	@keyframes delete-scale-rotate {
 		0% {
@@ -732,8 +1416,6 @@ onDestroy(() => {
 		}
 	}
 
-
-
 	.form-container {
 		transition: all 0.6s cubic-bezier(0.16, 1, 0.3, 1);
 		transform-origin: center;
@@ -795,7 +1477,8 @@ onDestroy(() => {
 		scroll-behavior: smooth;
 	}
 
-	html, body {
+	html,
+	body {
 		scrollbar-width: none;
 		-ms-overflow-style: none;
 	}
@@ -879,7 +1562,6 @@ onDestroy(() => {
 		color: hsl(var(--accent-foreground)) !important;
 	}
 
-
 	:global([data-bits-calendar-root] select),
 	:global([data-calendar-root] select) {
 		background-color: hsl(var(--background)) !important;
@@ -914,494 +1596,4 @@ onDestroy(() => {
 		justify-content: space-between !important;
 		gap: 0.5rem !important;
 	}
-
-
-
-
 </style>
-
-{#if showSettings}
-	<SettingsComponent on:close={closeSettings} />
-{:else}
-<div class="flex flex-col h-screen overflow-hidden">
-	<TitleBar title="Re:Mind" icon="R" useLogoIcon={true} />
-
-  <div id="content-scroll" class="flex-1 overflow-y-auto bg-background relative {showSettings ? 'animate-slide-out-left' : 'animate-slide-in-left'}">
-	<div class="p-6">
-		<div class="max-w-4xl mx-auto">
-		<div class="flex justify-center mb-12">
-			<Button 
-				onclick={() => {
-			showCreateForm = true;
-			setTimeout(() => {
-				const createFormElement = document.getElementById('create-form');
-				if (createFormElement) {
-					const contentScroll = document.getElementById('content-scroll');
-					if (contentScroll) {
-						contentScroll.style.scrollBehavior = 'smooth';
-						const elementTop = createFormElement.offsetTop;
-						contentScroll.scrollTop = Math.max(0, elementTop - 20);
-					}
-				}
-			}, 200);
-		}}
-				class="bg-primary hover:bg-primary/90 text-primary-foreground px-8 py-4 rounded-2xl shadow-lg transition-all duration-300 hover:scale-105 hover:shadow-xl border-0 text-subheading"
-			>
-				<Plus class="w-5 h-5 mr-3" />
-				Neue Erinnerung
-			</Button>
-		</div>
-
-	{#if showCreateForm || showEditForm}
-		<div class="form-container">
-			<Card 
-				id="create-form" 
-				class="mb-12 bg-card border border-border shadow-xl rounded-3xl overflow-hidden animate-slide-up"
-			>
-			<Content class="space-y-8 p-8">
-				<h2 class="text-3xl text-heading text-card-foreground mb-6">
-					{showEditForm ? 'Erinnerung bearbeiten' : 'Neue Erinnerung erstellen'}
-				</h2>
-				<div class="transition-all duration-300">
-					<label for="reminder-name" class="block text-sm text-subheading text-card-foreground mb-3">Erinnerungsname</label>
-					{#if showEditForm}
-						<Input 
-								id="reminder-name"
-								bind:value={editingReminder!.name}
-								placeholder="z.B. Medikamente nehmen, Meeting vorbereiten..."
-								class="w-full h-12 border-border focus:border-ring focus:ring-ring rounded-xl px-4 transition-all duration-300 bg-input focus:bg-background text-body text-foreground"
-							/>
-					{:else}
-						<Input 
-								id="reminder-name"
-								bind:value={newReminder.name}
-								placeholder="z.B. Medikamente nehmen, Wasser trinken..."
-								class="w-full h-12 border-border focus:border-ring focus:ring-ring rounded-xl px-4 transition-all duration-300 bg-input focus:bg-background text-body text-foreground"
-							/>
-					{/if}
-				</div>
-
-				<div class="grid grid-cols-1 md:grid-cols-2 gap-8">
-					<div class="transition-all duration-300">
-						<label for="reminder-interval" class="block text-sm text-subheading text-card-foreground mb-3">Intervall</label>
-						{#if showEditForm && editingReminder}
-							<Select.Root type="single" name="editReminderInterval" bind:value={editingReminder.interval}>
-								<Select.Trigger class="w-full h-12 px-4 bg-input border border-border rounded-xl text-foreground focus:border-ring focus:ring-4 focus:ring-ring/20 transition-all duration-300 hover:border-ring/50 flex items-center">
-									{editReminderTriggerContent}
-								</Select.Trigger>
-								<Select.Content>
-									<Select.Group>
-										<Select.Label>Intervall wählen</Select.Label>
-										{#each intervalOptions as option (option.value)}
-											<Select.Item value={option.value} label={option.label}>
-												{option.label}
-											</Select.Item>
-										{/each}
-									</Select.Group>
-								</Select.Content>
-							</Select.Root>
-						{:else}
-							<Select.Root type="single" name="newReminderInterval" bind:value={newReminder.interval}>
-								<Select.Trigger class="w-full h-12 px-4 bg-input border border-border rounded-xl text-foreground focus:border-ring focus:ring-4 focus:ring-ring/20 transition-all duration-300 hover:border-ring/50 flex items-center">
-									{newReminderTriggerContent}
-								</Select.Trigger>
-								<Select.Content>
-									<Select.Group>
-										<Select.Label>Intervall wählen</Select.Label>
-										{#each intervalOptions as option (option.value)}
-											<Select.Item value={option.value} label={option.label}>
-												{option.label}
-											</Select.Item>
-										{/each}
-									</Select.Group>
-								</Select.Content>
-							</Select.Root>
-						{/if}
-					</div>
-
-					{#if showEditForm && editingReminder}
-						{#if editingReminder.interval !== 'specific'}
-							<div class="transition-all duration-300">
-								<label for="reminder-interval-value" class="block text-sm text-subheading text-card-foreground mb-3">Anzahl</label>
-								<Input 
-									id="reminder-interval-value"
-									type="number"
-									bind:value={editingReminder.intervalValue}
-									min="1"
-									class="w-full h-10 border-border focus:border-ring focus:ring-ring rounded-xl px-4 transition-all duration-300 bg-input focus:bg-background text-body text-foreground"
-								/>
-							</div>
-						{:else}
-							<div class="transition-all duration-300 space-y-4">
-								<div>
-									<label for="reminder-specific-date" class="block text-sm text-subheading text-card-foreground mb-3">Datum wählen</label>
-									<Popover.Root bind:open={editReminderPopoverOpen}>
-									<Popover.Trigger class="w-full h-10 justify-start text-left font-normal border-border hover:bg-accent bg-input border border-border rounded-xl px-4 text-foreground focus:border-ring focus:ring-4 focus:ring-ring/20 transition-all duration-300 hover:border-ring/50 flex items-center">
-										<CalendarIcon class="mr-2 h-4 w-4" />
-										{editReminderCalendarValue ? editReminderCalendarValue.toDate(getLocalTimeZone()).toLocaleDateString('de-DE') : 'Datum auswählen'}
-									</Popover.Trigger>
-										<Popover.Content class="w-auto p-0" align="start">
-											<Calendar 
-												type="single" 
-												bind:value={editReminderCalendarValue}
-												class="rounded-md border-0"
-												captionLayout="dropdown"
-												locale="de-DE"
-												minValue={today(getLocalTimeZone())}
-												onValueChange={() => editReminderPopoverOpen = false}
-											/>
-										</Popover.Content>
-									</Popover.Root>
-								</div>
-								<div>
-									<label for="reminder-specific-time" class="block text-sm text-subheading text-card-foreground mb-3">Uhrzeit</label>
-									<DropdownMenu.Root>
-										<DropdownMenu.Trigger class="w-full h-10 justify-start text-left font-normal border-border hover:bg-accent bg-input border border-border rounded-xl px-4 text-foreground focus:border-ring focus:ring-4 focus:ring-ring/20 transition-all duration-300 hover:border-ring/50 flex items-center">
-											<Clock class="mr-2 h-4 w-4" />
-											{editingReminder?.specificTime || 'Uhrzeit wählen'}
-										</DropdownMenu.Trigger>
-										<DropdownMenu.Content class="w-48 max-h-60 overflow-y-auto">
-											<DropdownMenu.Group>
-												<DropdownMenu.Label>Uhrzeit auswählen</DropdownMenu.Label>
-												{#each timeOptions as timeOption (timeOption.value)}
-													<DropdownMenu.Item onclick={() => { if (editingReminder) editingReminder.specificTime = timeOption.value; }}>
-														{timeOption.label}
-													</DropdownMenu.Item>
-												{/each}
-											</DropdownMenu.Group>
-										</DropdownMenu.Content>
-									</DropdownMenu.Root>
-								</div>
-							</div>
-						{/if}
-					{:else}
-						{#if newReminder.interval !== 'specific'}
-							<div class="transition-all duration-300">
-								<label for="new-reminder-interval-value" class="block text-sm text-subheading text-card-foreground mb-3">Anzahl</label>
-								<Input 
-									id="new-reminder-interval-value"
-									type="number"
-									bind:value={newReminder.intervalValue}
-									min="1"
-									class="w-full h-10 border-border focus:border-ring focus:ring-ring rounded-xl px-4 transition-all duration-300 bg-input focus:bg-background text-body text-foreground"
-								/>
-							</div>
-						{:else}
-						<div class="transition-all duration-300 space-y-4">
-							<div>
-								<label for="new-reminder-specific-date" class="block text-sm text-subheading text-card-foreground mb-3">Datum wählen</label>
-								<Popover.Root bind:open={newReminderPopoverOpen}>
-								<Popover.Trigger class="w-full h-10 justify-start text-left font-normal border-border hover:bg-accent bg-input border border-border rounded-xl px-4 text-foreground focus:border-ring focus:ring-4 focus:ring-ring/20 transition-all duration-300 hover:border-ring/50 flex items-center">
-									<CalendarIcon class="mr-2 h-4 w-4" />
-									{newReminderCalendarValue ? newReminderCalendarValue.toDate(getLocalTimeZone()).toLocaleDateString('de-DE') : 'Datum auswählen'}
-								</Popover.Trigger>
-									<Popover.Content class="w-auto p-0" align="start">
-										<Calendar 
-											type="single" 
-											bind:value={newReminderCalendarValue}
-											class="rounded-md border-0"
-											captionLayout="dropdown"
-											locale="de-DE"
-											minValue={today(getLocalTimeZone())}
-											onValueChange={() => newReminderPopoverOpen = false}
-										/>
-									</Popover.Content>
-								</Popover.Root>
-							</div>
-							<div>
-								<label for="new-reminder-specific-time" class="block text-sm text-subheading text-card-foreground mb-3">Uhrzeit</label>
-								<DropdownMenu.Root>
-									<DropdownMenu.Trigger class="w-full h-10 justify-start text-left font-normal border-border hover:bg-accent bg-input border border-border rounded-xl px-4 text-foreground focus:border-ring focus:ring-4 focus:ring-ring/20 transition-all duration-300 hover:border-ring/50 flex items-center">
-										<Clock class="mr-2 h-4 w-4" />
-										{newReminder.specificTime || 'Uhrzeit wählen'}
-									</DropdownMenu.Trigger>
-									<DropdownMenu.Content class="w-48 max-h-60 overflow-y-auto">
-										<DropdownMenu.Group>
-											<DropdownMenu.Label>Uhrzeit auswählen</DropdownMenu.Label>
-											{#each timeOptions as timeOption (timeOption.value)}
-												<DropdownMenu.Item onclick={() => newReminder.specificTime = timeOption.value}>
-													{timeOption.label}
-												</DropdownMenu.Item>
-											{/each}
-										</DropdownMenu.Group>
-									</DropdownMenu.Content>
-								</DropdownMenu.Root>
-							</div>
-						</div>
-						{/if}
-					{/if}
-				</div>
-
-				<fieldset class="transition-all duration-300">
-					<legend class="block text-sm text-subheading text-card-foreground mb-4">Akzentfarbe wählen</legend>
-					<div class="flex gap-4 items-center">
-						{#each Object.entries(colorClasses) as [color, classes]}
-							{#if showEditForm}
-								<button
-									type="button"
-									onclick={() => { 
-										if (editingReminder) {
-											editingReminder.color = color as ReminderColor;
-											showEditColorPicker = false;
-										}
-									}}
-									aria-label="Farbe {color} auswählen"
-									class="w-10 h-10 rounded-full {classes} {editingReminder?.color === color ? 'ring-4 ring-primary scale-110 shadow-lg' : 'ring-2 ring-border'} transition-all duration-300 hover:scale-105 hover:shadow-md"
-								></button>
-							{:else}
-								<button
-									type="button"
-									onclick={() => {
-										newReminder.color = color as ReminderColor;
-										showColorPicker = false;
-									}}
-									aria-label="Farbe {color} auswählen"
-									class="w-10 h-10 rounded-full {classes} {newReminder.color === color ? 'ring-4 ring-primary scale-110 shadow-lg' : 'ring-2 ring-border'} transition-all duration-300 hover:scale-105 hover:shadow-md"
-								></button>
-							{/if}
-						{/each}
-						
-							{#if showEditForm}
-								<Popover.Root bind:open={showEditColorPicker}>
-									<Popover.Trigger>
-										<button
-											type="button"
-											aria-label="Benutzerdefinierte Farbe wählen"
-											class="w-10 h-10 rounded-full transition-all duration-300 hover:scale-105 hover:shadow-md overflow-hidden flex items-center justify-center {editingReminder?.color?.startsWith('#') ? 'ring-4 ring-primary scale-110 shadow-lg' : 'ring-2 ring-border'}"
-											style="{editingReminder?.color?.startsWith('#') ? `background: ${editingReminder.color};` : 'background: linear-gradient(45deg, #7f5af0, #50fa7b, #e8a87c, #ff6b6b);'}"
-										>
-											{#if !editingReminder?.color?.startsWith('#')}
-												<Palette class="w-4 h-4 text-white drop-shadow-sm" />
-											{/if}
-										</button>
-									</Popover.Trigger>
-									<Popover.Content class="w-auto p-4 bg-card border border-border rounded-xl shadow-xl">
-										<div class="space-y-3">
-											<h4 class="text-sm font-medium text-card-foreground">Benutzerdefinierte Farbe</h4>
-											<ColorPicker 
-												bind:hex={editCustomColor}
-												position="responsive"
-												isDialog={false}
-												--picker-height="120px"
-												--picker-width="200px"
-												--slider-width="20px"
-												--cp-bg-color="hsl(var(--card))"
-												--cp-border-color="hsl(var(--border))"
-												--cp-text-color="hsl(var(--card-foreground))"
-												--cp-input-color="hsl(var(--input))"
-												--cp-button-hover-color="hsl(var(--accent))"
-											/>
-											<Button 
-												onclick={() => {
-													if (editingReminder) {
-														editingReminder.color = editCustomColor;
-														showEditColorPicker = false;
-													}
-												}}
-												class="w-full bg-primary hover:bg-primary/90 text-primary-foreground"
-											>
-												Farbe übernehmen
-											</Button>
-										</div>
-									</Popover.Content>
-								</Popover.Root>
-							{:else}
-								<Popover.Root bind:open={showColorPicker}>
-									<Popover.Trigger>
-										<button
-											type="button"
-											aria-label="Benutzerdefinierte Farbe wählen"
-											class="w-10 h-10 rounded-full transition-all duration-300 hover:scale-105 hover:shadow-md overflow-hidden flex items-center justify-center {newReminder.color?.startsWith('#') ? 'ring-4 ring-primary scale-110 shadow-lg' : 'ring-2 ring-border'}"
-											style="{newReminder.color?.startsWith('#') ? `background: ${newReminder.color};` : 'background: linear-gradient(45deg, #7f5af0, #50fa7b, #e8a87c, #ff6b6b);'}"
-										>
-											{#if !newReminder.color?.startsWith('#')}
-											<Palette class="w-4 h-4 text-white drop-shadow-sm" />
-										{/if}
-										</button>
-									</Popover.Trigger>
-									<Popover.Content class="w-auto p-4 bg-card border border-border rounded-xl shadow-xl">
-										<div class="space-y-3">
-											<h4 class="text-sm font-medium text-card-foreground">Benutzerdefinierte Farbe</h4>
-											<ColorPicker 
-												bind:hex={customColor}
-												position="responsive"
-												isDialog={false}
-												--picker-height="120px"
-												--picker-width="200px"
-												--slider-width="20px"
-												--cp-bg-color="hsl(var(--card))"
-												--cp-border-color="hsl(var(--border))"
-												--cp-text-color="hsl(var(--card-foreground))"
-												--cp-input-color="hsl(var(--input))"
-												--cp-button-hover-color="hsl(var(--accent))"
-											/>
-											<Button 
-												onclick={() => {
-													newReminder.color = customColor;
-													showColorPicker = false;
-												}}
-												class="w-full bg-primary hover:bg-primary/90 text-primary-foreground"
-											>
-												Farbe übernehmen
-											</Button>
-										</div>
-									</Popover.Content>
-								</Popover.Root>
-							{/if}
-					</div>
-				</fieldset>
-
-				<div class="flex gap-6 pt-8">
-					<Button 
-						onclick={showEditForm ? updateReminder : createReminder}
-						class="flex-1 bg-primary hover:bg-primary/90 text-primary-foreground py-4 rounded-xl text-subheading transition-all duration-300 hover:scale-105 hover:shadow-lg border-0"
-					>
-						<Bell class="w-5 h-5 mr-3" />
-						{showEditForm ? 'Erinnerung aktualisieren' : 'Erinnerung erstellen'}
-					</Button>
-					<Button 
-						onclick={() => {
-			const formContainer = document.querySelector('.form-container');
-			if (formContainer) {
-				formContainer.classList.add('closing');
-			}
-			
-			setTimeout(() => {
-				showCreateForm = false;
-				showEditForm = false;
-				resetForm();
-				cancelEdit();
-			}, 600);
-			
-			setTimeout(() => {
-				const contentScroll = document.getElementById('content-scroll');
-				if (contentScroll) {
-					contentScroll.style.scrollBehavior = 'smooth';
-					contentScroll.scrollTop = 0;
-				}
-			}, 700);
-		}}
-						variant="outline"
-						class="flex-1 border-2 border-border text-muted-foreground hover:bg-destructive/10 hover:text-destructive py-4 rounded-xl text-subheading transition-all duration-300 hover:scale-105 hover:border-destructive"
-					>
-						Abbrechen
-					</Button>
-				</div>
-			</Content>
-			</Card>
-		</div>
-	{/if}
-
-	<div class="grid gap-6 transition-all duration-800" style="transition-timing-function: cubic-bezier(0.25, 0.46, 0.45, 0.94);">
-		{#if $reminders.length === 0}
-			<Card class="bg-card border border-border shadow-lg rounded-3xl overflow-hidden animate-slide-up-staggered">
-				<Content class="text-center py-16">
-					<h3 class="text-2xl text-heading text-card-foreground mb-3">Noch keine Erinnerungen</h3>
-					<p class="text-muted-foreground text-lg text-caption">Erstelle deine erste Erinnerung</p>
-				</Content>
-			</Card>
-		{:else}
-			{#each $reminders as reminder, index (reminder.id)}
-			<Card id={`reminder-${reminder.id}`} class="bg-card border border-border shadow-lg hover:shadow-xl rounded-3xl overflow-hidden transition-all duration-800 group hover:scale-[1.02] animate-slide-up-staggered" style="animation-delay: {index * 0.1}s; will-change: transform, height; transition-timing-function: cubic-bezier(0.25, 0.46, 0.45, 0.94);">
-				<Content class="p-8 transition-all duration-800" style="transition-timing-function: cubic-bezier(0.25, 0.46, 0.45, 0.94);">
-					<div class="flex items-center justify-between gap-4">
-						<div class="flex items-center gap-6 flex-1 min-w-0">
-							<div 
-								class="w-6 h-6 rounded-full flex-shrink-0 shadow-md transition-all duration-300 group-hover:scale-110 {getColorStyle(reminder.color)}"
-								style="{getCustomColorStyle(reminder.color)}"
-							></div>
-							<div class="flex-1 min-w-0">
-								<h3 class="text-xl text-subheading text-card-foreground mb-3 truncate">{reminder.name}</h3>
-								<div class="space-y-2">
-									<div class="flex items-center gap-2 text-sm text-body">
-										{#if reminder.interval === 'specific'}
-											<CalendarIcon class="w-4 h-4 flex-shrink-0" />
-										{:else}
-											<Clock class="w-4 h-4 flex-shrink-0" />
-										{/if}
-										<span class="truncate">{formatReminderInfo(reminder)}</span>
-									</div>
-									
-									<div class="overflow-hidden transition-all duration-800" style="max-height: {getTimeUntilNextReminder(reminder) && reminder.active ? '80px' : '0px'}; padding-top: {getTimeUntilNextReminder(reminder) && reminder.active ? '8px' : '0px'}; margin-top: {getTimeUntilNextReminder(reminder) && reminder.active ? '8px' : '0px'}; transition-timing-function: cubic-bezier(0.25, 0.46, 0.45, 0.94);">
-										<div class="flex items-start gap-2 text-sm text-muted-foreground pt-2 transition-opacity duration-800" style="opacity: {getTimeUntilNextReminder(reminder) && reminder.active ? '1' : '0'}; transition-timing-function: cubic-bezier(0.25, 0.46, 0.45, 0.94); transition-delay: {getTimeUntilNextReminder(reminder) && reminder.active ? '0ms' : '200ms'};">
-											<div class="w-2 h-2 bg-emerald-500 rounded-full flex-shrink-0 mt-2 animate-pulse"></div>
-											<span class="leading-relaxed break-words">
-												<span class="font-medium text-emerald-600">Nächste Erinnerung</span><br>
-												<span class="text-caption">{getTimeUntilNextReminder(reminder) || ''}</span>
-											</span>
-										</div>
-									</div>
-									
-									{#if reminder.lastNotified}
-										<div class="flex items-center gap-2 text-sm text-muted-foreground">
-											<div class="w-2 h-2 bg-gray-400 rounded-full flex-shrink-0"></div>
-											<span class="text-caption truncate">Zuletzt: {new Date(reminder.lastNotified).toLocaleString('de-DE')}</span>
-										</div>
-									{/if}
-								</div>
-							</div>
-						</div>
-							<div class="flex items-center gap-3">
-								<div class="opacity-0 group-hover:opacity-100 transition-opacity flex items-center gap-2">
-									<Button 
-										onclick={() => startEditReminder(reminder)}
-										variant="outline"
-										class="transition-all duration-300 border-2 border-border text-muted-foreground hover:bg-accent hover:border-primary rounded-xl p-3"
-									>
-										<Edit class="w-4 h-4" />
-									</Button>
-									<Button 
-										onclick={() => deleteReminder(reminder.id)}
-										variant="outline"
-										class="transition-all duration-300 border-2 border-destructive/30 text-destructive hover:bg-destructive/10 hover:border-destructive rounded-xl p-3"
-									>
-										<Trash2 class="w-4 h-4" />
-									</Button>
-								</div>
-								
-								<div class="relative">
-									{#if reminder.active}
-										<div class="absolute -bottom-1 left-1/2 transform -translate-x-1/2 w-12 h-2 bg-emerald-400/30 rounded-full blur-sm"></div>
-									{/if}
-									<Button 
-										onclick={() => toggleReminderActive(reminder)}
-										variant="outline"
-										class="relative transition-all duration-500 border-2 {reminder.active ? 'border-emerald-400/50 bg-gradient-to-r from-emerald-50 to-green-50 text-emerald-600 hover:border-emerald-500' : 'border-slate-300/50 bg-gradient-to-r from-slate-50 to-gray-50 text-slate-400 hover:border-slate-400'} rounded-2xl p-3 group/toggle"
-										title={reminder.active ? 'Aktiv - Klicken zum Deaktivieren' : 'Inaktiv - Klicken zum Aktivieren'}
-									>
-										<div class="relative w-8 h-4 transition-all duration-500">
-					
-											<div class="absolute inset-0 rounded-full transition-all duration-500 {reminder.active ? 'bg-gradient-to-r from-emerald-400 to-green-500 shadow-inner' : 'bg-gradient-to-r from-slate-300 to-gray-400 shadow-inner'}"></div>
-										
-											<div class="absolute top-0.5 w-3 h-3 bg-white rounded-full shadow-lg transition-all duration-500 transform {reminder.active ? 'translate-x-4 shadow-emerald-300/50' : 'translate-x-0.5 shadow-slate-400/50'} group-hover/toggle:scale-110">
-										
-												<div class="absolute inset-0.5 rounded-full transition-all duration-500 {reminder.active ? 'bg-gradient-to-br from-emerald-200 to-green-300' : 'bg-gradient-to-br from-slate-200 to-gray-300'}"></div>
-											</div>
-										</div>
-									</Button>
-								</div>
-							</div>
-						</div>
-					</Content>
-				</Card>
-			{/each}
-		{/if}
-		</div>
-	</div>
-		</div>
-	</div>
-</div>
-{/if}
-
-{#if !showSettings}
-	<div class="fixed bottom-6 right-6 z-50">
-		<Button
-			onclick={openSettings}
-			variant="default"
-			size="icon"
-			class="w-12 h-12 rounded-xl bg-primary hover:bg-primary/90 text-primary-foreground shadow-lg hover:shadow-xl transition-all duration-300 hover:scale-105"
-		>
-			<Settings class="w-5 h-5" />
-		</Button>
-	</div>
-{/if}

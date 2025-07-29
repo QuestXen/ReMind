@@ -8,7 +8,7 @@
 
 	let retryCount = 0;
 	const MAX_RETRIES = 3;
-	let updateStatus = $state('checking'); // 'checking', 'updating', 'done'
+	let updateStatus = $state('checking');
 	let updateMessage = $state('Update Checken...');
 
 	interface UpdateInfo {
@@ -33,9 +33,9 @@
 		try {
 			updateStatus = 'updating';
 			updateMessage = 'Update wird installiert...';
-			
+
 			await invoke('install_update');
-			
+
 			updateMessage = 'Update abgeschlossen. Anwendung wird neu gestartet...';
 			return true;
 		} catch (error) {
@@ -44,28 +44,36 @@
 		}
 	}
 
+
+	interface LoadedSettings {
+		autostart_enabled?: boolean;
+		theme?: string | null;
+		notification_sound?: boolean;
+		[key: string]: unknown; 
+	}
+
 	async function loadAppData() {
 		try {
 			isLoading.set(true);
 			loadingError.set(null);
 
 			const [loadedSettings, loadedReminders] = await Promise.all([
-				invoke<Record<string, any>>('load_settings'),
+				invoke<LoadedSettings>('load_settings'),
 				invoke<Reminder[]>('load_reminders')
 			]);
-			
+
 			const appSettings: AppSettings = {
-				autostartEnabled: loadedSettings.autostart_enabled || false,
-				theme: loadedSettings.theme || null,
+				autostartEnabled: Boolean(loadedSettings.autostart_enabled),
+				theme: typeof loadedSettings.theme === 'string' ? loadedSettings.theme : null,
 				notificationSound: loadedSettings.notification_sound !== false,
-				...loadedSettings 
+				...loadedSettings
 			};
 
 			// Update stores
 			settings.set(appSettings);
 			reminders.set(loadedReminders);
 
-			await new Promise(resolve => setTimeout(resolve, 300));
+			await new Promise((resolve) => setTimeout(resolve, 300));
 
 			isLoading.set(false);
 			retryCount = 0;
@@ -89,21 +97,23 @@
 			console.log(`Retry attempt ${retryCount}/${MAX_RETRIES}`);
 			await loadAppData();
 		} else {
-			loadingError.set('Maximale Anzahl von Wiederholungsversuchen erreicht. Bitte starten Sie die Anwendung neu.');
+			loadingError.set(
+				'Maximale Anzahl von Wiederholungsversuchen erreicht. Bitte starten Sie die Anwendung neu.'
+			);
 		}
 	}
 
 	onMount(async () => {
 		const updateInfo = await checkForUpdates();
-		
+
 		if (updateInfo?.available) {
 			console.log(`Update available: ${updateInfo.version}`);
 			updateMessage = `Update ${updateInfo.version} verfügbar. Installation wird gestartet...`;
-			
-			await new Promise(resolve => setTimeout(resolve, 1000));
-			
+
+			await new Promise((resolve) => setTimeout(resolve, 1000));
+
 			const updateSuccess = await installUpdate();
-			
+
 			if (!updateSuccess) {
 				updateStatus = 'done';
 				loadAppData();
@@ -117,7 +127,7 @@
 
 <main class="bg-background min-h-screen">
 	{#if $isLoading || updateStatus !== 'done'}
-		<Loading 
+		<Loading
 			message={updateStatus === 'done' ? 'Lade Erinnerungen und Einstellungen' : updateMessage}
 			error={$loadingError}
 			retryCallback={$loadingError ? retryLoading : undefined}

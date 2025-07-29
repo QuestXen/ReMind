@@ -30,14 +30,13 @@
 			console.log('[Frontend] Ignoring toggle - updating');
 			return;
 		}
-		
+
 		try {
 			console.log('[Frontend] Toggling autostart to:', checked);
 			updating = true;
-			
-	
+
 			updateSetting('autostartEnabled', checked);
-			
+
 			if (checked) {
 				await enable();
 				console.log('[Frontend] Autostart enabled in system');
@@ -45,17 +44,15 @@
 				await disable();
 				console.log('[Frontend] Autostart disabled in system');
 			}
-			
-		
-			await invoke('update_setting', { 
-				key: 'autostartEnabled', 
-				value: checked 
+
+			await invoke('update_setting', {
+				key: 'autostartEnabled',
+				value: checked
 			});
 			console.log('[Frontend] Autostart setting saved to backend');
-			
 		} catch (error) {
 			console.error('[Frontend] Failed to toggle autostart:', error);
-	
+
 			updateSetting('autostartEnabled', !checked);
 			console.log('[Frontend] Reverted autostart setting due to error');
 		} finally {
@@ -68,21 +65,18 @@
 			console.log('[Frontend] Ignoring toggle - updating');
 			return;
 		}
-		
+
 		try {
 			console.log('[Frontend] Toggling notification sound to:', checked);
 			updating = true;
-			
-		
+
 			updateSetting('notificationSound', checked);
-			
-		
-			await invoke('update_setting', { 
-				key: 'notificationSound', 
-				value: checked 
+
+			await invoke('update_setting', {
+				key: 'notificationSound',
+				value: checked
 			});
 			console.log('[Frontend] Notification sound setting saved to backend');
-			
 		} catch (error) {
 			console.error('[Frontend] Failed to toggle notification sound:', error);
 			updateSetting('notificationSound', !checked);
@@ -107,9 +101,9 @@
 </script>
 
 <div class="flex h-screen flex-col overflow-hidden">
-	<TitleBar title="Einstellungen" icon="S" useLogoIcon={true} />
+	<TitleBar title="Re:Mind" icon="S" useLogoIcon={true} />
 
-	<div class="bg-background animate-slide-in-right flex-1 overflow-y-auto relative">
+	<div class="bg-background animate-slide-in-right relative flex-1 overflow-y-auto">
 		<div class="p-4">
 			<Button
 				onclick={handleClose}
@@ -128,22 +122,24 @@
 				</div>
 
 				<!-- Autostart Setting -->
-				<div class="bg-card border-border rounded-3xl border p-8 mb-6">
+				<div class="bg-card border-border mb-6 rounded-3xl border p-8">
 					<div class="space-y-6">
 						<div class="flex items-center justify-between">
 							<div class="space-y-1">
 								<h3 class="text-heading text-card-foreground text-lg">Autostart</h3>
-								<p class="text-muted-foreground text-body text-sm">App automatisch beim Systemstart starten</p>
+								<p class="text-muted-foreground text-body text-sm">
+									App automatisch beim Systemstart starten
+								</p>
 							</div>
 							<div class="flex items-center">
 								{#if loading}
-									<div class="animate-spin rounded-full h-5 w-5 border-b-2 border-primary"></div>
+									<div class="border-primary h-5 w-5 animate-spin rounded-full border-b-2"></div>
 								{:else}
-									<Switch 
-									bind:checked={$settings.autostartEnabled} 
-									disabled={updating}
-									onCheckedChange={toggleAutostart}
-								/>
+									<Switch
+										bind:checked={$settings.autostartEnabled}
+										disabled={updating}
+										onCheckedChange={toggleAutostart}
+									/>
 								{/if}
 							</div>
 						</div>
@@ -156,35 +152,37 @@
 						<div class="flex items-center justify-between">
 							<div class="space-y-1">
 								<h3 class="text-heading text-card-foreground text-lg">Benachrichtigungssound</h3>
-								<p class="text-muted-foreground text-body text-sm">Windows-Systemsound bei Benachrichtigungen abspielen</p>
+								<p class="text-muted-foreground text-body text-sm">
+									Windows-Systemsound bei Benachrichtigungen abspielen
+								</p>
 							</div>
 							<div class="flex items-center">
 								{#if loading}
-									<div class="animate-spin rounded-full h-5 w-5 border-b-2 border-primary"></div>
+									<div class="border-primary h-5 w-5 animate-spin rounded-full border-b-2"></div>
 								{:else}
-									<Switch 
-									bind:checked={$settings.notificationSound} 
-									disabled={updating}
-									onCheckedChange={toggleNotificationSound}
-								/>
+									<Switch
+										bind:checked={$settings.notificationSound}
+										disabled={updating}
+										onCheckedChange={toggleNotificationSound}
+									/>
 								{/if}
 							</div>
 						</div>
 					</div>
 				</div>
-
 			</div>
 		</div>
 	</div>
 
 	{#if systemInfo}
-		<div class="bg-background border-t border-border px-6 py-3">
-			<div class="text-center space-y-1">
+		<div class="bg-background border-border border-t px-6 py-3">
+			<div class="space-y-1 text-center">
 				<p class="text-muted-foreground text-xs">
 					ReMind v{systemInfo.app_version}
 				</p>
 				<p class="text-muted-foreground text-xs">
-					{systemInfo.os_version} {systemInfo.arch}
+					{systemInfo.os_version}
+					{systemInfo.arch}
 				</p>
 				<p class="text-muted-foreground text-xs italic">
 					© {new Date().getFullYear()} QuestXen. All rights reserved.
