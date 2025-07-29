@@ -63,14 +63,26 @@
 		if (dialogMode === 'create') {
 			const reminder: Reminder = {
 				id: crypto.randomUUID(),
-				name: reminderData.name!,
-				interval: reminderData.interval!,
-				intervalValue: reminderData.intervalValue!,
+				title: reminderData.title!,
+				message: reminderData.message || '',
+				color: reminderData.color!,
+				mode: reminderData.mode || 'interval',
+				// Interval mode properties
+				interval: reminderData.interval,
+				intervalValue: reminderData.intervalValue,
+				// Scheduled mode properties (uses interval and intervalValue)
 				specificDate: reminderData.specificDate,
 				specificTime: reminderData.specificTime,
-				color: reminderData.color!,
+				beginAt: reminderData.beginAt,
+				beginAtTime: reminderData.beginAtTime,
+				// Appointment mode properties
+				appointmentDate: reminderData.appointmentDate,
+				appointmentTime: reminderData.appointmentTime,
+				recurrence: reminderData.recurrence,
+				weekdays: reminderData.weekdays,
+				recurrenceEndDate: reminderData.recurrenceEndDate,
 				createdAt: new Date().toISOString(),
-				active: true
+				updatedAt: new Date().toISOString()
 			};
 			
 			try {
@@ -92,7 +104,7 @@
 				await invoke('update_reminder', { reminder: updatedReminder });
 				updateReminderStore(updatedReminder);
 				startReminderTimer(updatedReminder);
-				console.log(`Updated reminder: ${updatedReminder.name}`);
+				console.log(`Updated reminder: ${updatedReminder.title || updatedReminder.name}`);
 			} catch (error) {
 				console.error('Failed to update reminder:', error);
 				if (editingReminder) {
@@ -213,39 +225,28 @@
 		clearReminderTimer(reminder.id);
 		
 		const now = new Date();
-		let nextExecution: Date;
+		let nextExecution: Date | null = null;
 		
-		switch (reminder.interval) {
-			case 'minutes':
-				nextExecution = new Date(now.getTime() + reminder.intervalValue * 60 * 1000);
+		// Handle different reminder modes
+		switch (reminder.mode) {
+			case 'interval':
+				nextExecution = calculateIntervalExecution(reminder, now);
 				break;
-			case 'hours':
-				nextExecution = new Date(now.getTime() + reminder.intervalValue * 60 * 60 * 1000);
+			case 'scheduled':
+				nextExecution = calculateScheduledExecution(reminder, now);
 				break;
-			case 'days':
-				nextExecution = new Date(now.getTime() + reminder.intervalValue * 24 * 60 * 60 * 1000);
-				break;
-			case 'weeks':
-				nextExecution = new Date(now.getTime() + reminder.intervalValue * 7 * 24 * 60 * 60 * 1000);
-				break;
-			case 'months':
-				nextExecution = new Date(now);
-				nextExecution.setMonth(nextExecution.getMonth() + reminder.intervalValue);
-				break;
-			case 'specific':
-				if (!reminder.specificDate) {
-					console.warn(`Reminder ${reminder.id} has no specific date set`);
-					return;
-				}
-				nextExecution = new Date(reminder.specificDate);
-				if (nextExecution <= now) {
-					console.warn(`Reminder ${reminder.id} scheduled for past date: ${nextExecution}`);
-					return;
-				}
+			case 'appointment':
+				nextExecution = calculateAppointmentExecution(reminder, now);
 				break;
 			default:
-				console.error(`Unknown interval type: ${reminder.interval}`);
-				return;
+				// Fallback for old reminders without mode
+				nextExecution = calculateLegacyExecution(reminder, now);
+				break;
+		}
+		
+		if (!nextExecution) {
+			console.warn(`Could not calculate next execution for reminder ${reminder.id}`);
+			return;
 		}
 		
 		const timeUntilExecution = nextExecution.getTime() - now.getTime();
@@ -298,6 +299,207 @@
 			clearTimeout(timerInfo.timerId);
 			reminderTimers.delete(reminderId);
 			console.log(`Cleared timer for reminder ${reminderId}`);
+		}
+	}
+
+	// Helper functions for calculating next execution times
+	function calculateIntervalExecution(reminder: Reminder, now: Date): Date | null {
+		if (!reminder.interval || !reminder.intervalValue) {
+			console.warn(`Interval reminder ${reminder.id} missing interval or intervalValue`);
+			return null;
+		}
+
+		// Check if BeginAt is set and we haven't reached it yet
+		if (reminder.beginAt) {
+			const beginAtDate = new Date(reminder.beginAt);
+			if (reminder.beginAtTime) {
+				const [hours, minutes] = reminder.beginAtTime.split(':').map(Number);
+				beginAtDate.setHours(hours, minutes, 0, 0);
+			}
+			
+			if (now < beginAtDate) {
+				// Schedule for BeginAt time
+				return beginAtDate;
+			}
+		}
+
+		switch (reminder.interval) {
+			case 'minutes':
+				return new Date(now.getTime() + reminder.intervalValue * 60 * 1000);
+			case 'hours':
+				return new Date(now.getTime() + reminder.intervalValue * 60 * 60 * 1000);
+			case 'days':
+				return new Date(now.getTime() + reminder.intervalValue * 24 * 60 * 60 * 1000);
+			case 'weeks':
+				return new Date(now.getTime() + reminder.intervalValue * 7 * 24 * 60 * 60 * 1000);
+			case 'months':
+				const nextMonth = new Date(now);
+				nextMonth.setMonth(nextMonth.getMonth() + reminder.intervalValue);
+				return nextMonth;
+			default:
+				console.error(`Unknown interval type: ${reminder.interval}`);
+				return null;
+		}
+	}
+
+	function calculateScheduledExecution(reminder: Reminder, now: Date): Date | null {
+		if (!reminder.interval || !reminder.intervalValue) {
+			console.warn(`Scheduled reminder ${reminder.id} missing interval or intervalValue`);
+			return null;
+		}
+
+		// Handle BeginAt logic - scheduled mode always requires beginAt
+		if (!reminder.beginAt || !reminder.beginAtTime) {
+			console.warn(`Scheduled reminder ${reminder.id} missing beginAt or beginAtTime`);
+			return null;
+		}
+
+		const beginAtDate = new Date(reminder.beginAt);
+		const [hours, minutes] = reminder.beginAtTime.split(':').map(Number);
+		beginAtDate.setHours(hours, minutes, 0, 0);
+		
+		// If we haven't reached the begin time yet, return it
+		if (now < beginAtDate) {
+			return beginAtDate;
+		}
+
+		// Calculate next execution based on interval from begin time
+		switch (reminder.interval) {
+			case 'minutes':
+				const minutesMs = reminder.intervalValue * 60 * 1000;
+				const timeSinceBeginMinutes = now.getTime() - beginAtDate.getTime();
+				const intervalsPassed = Math.floor(timeSinceBeginMinutes / minutesMs);
+				return new Date(beginAtDate.getTime() + (intervalsPassed + 1) * minutesMs);
+			case 'hours':
+				const hoursMs = reminder.intervalValue * 60 * 60 * 1000;
+				const timeSinceBeginHours = now.getTime() - beginAtDate.getTime();
+				const hoursIntervalsPassed = Math.floor(timeSinceBeginHours / hoursMs);
+				return new Date(beginAtDate.getTime() + (hoursIntervalsPassed + 1) * hoursMs);
+			case 'days':
+				const daysMs = reminder.intervalValue * 24 * 60 * 60 * 1000;
+				const timeSinceBeginDays = now.getTime() - beginAtDate.getTime();
+				const daysIntervalsPassed = Math.floor(timeSinceBeginDays / daysMs);
+				return new Date(beginAtDate.getTime() + (daysIntervalsPassed + 1) * daysMs);
+			case 'weeks':
+				const weeksMs = reminder.intervalValue * 7 * 24 * 60 * 60 * 1000;
+				const timeSinceBeginWeeks = now.getTime() - beginAtDate.getTime();
+				const weeksIntervalsPassed = Math.floor(timeSinceBeginWeeks / weeksMs);
+				return new Date(beginAtDate.getTime() + (weeksIntervalsPassed + 1) * weeksMs);
+			case 'months':
+				const nextMonth = new Date(beginAtDate);
+				const monthsSinceBegin = (now.getFullYear() - beginAtDate.getFullYear()) * 12 + (now.getMonth() - beginAtDate.getMonth());
+				const monthsToAdd = Math.ceil((monthsSinceBegin + 1) / reminder.intervalValue) * reminder.intervalValue;
+				nextMonth.setMonth(beginAtDate.getMonth() + monthsToAdd);
+				return nextMonth;
+			default:
+				console.error(`Unknown interval type: ${reminder.interval}`);
+				return null;
+		}
+	}
+
+	function calculateAppointmentExecution(reminder: Reminder, now: Date): Date | null {
+		if (!reminder.appointmentDate || !reminder.appointmentTime) {
+			console.warn(`Appointment reminder ${reminder.id} missing date or time`);
+			return null;
+		}
+
+		const appointmentDate = new Date(reminder.appointmentDate);
+		const [hours, minutes] = reminder.appointmentTime.split(':').map(Number);
+		appointmentDate.setHours(hours, minutes, 0, 0);
+
+		const recurrence = reminder.recurrence || 'once';
+
+		if (recurrence === 'once') {
+			if (appointmentDate <= now) {
+				console.warn(`One-time appointment ${reminder.id} scheduled for past date: ${appointmentDate}`);
+				return null;
+			}
+			return appointmentDate;
+		}
+
+		// Handle recurring appointments
+		return calculateNextRecurringAppointment(reminder, now, appointmentDate);
+	}
+
+	function calculateNextRecurringAppointment(reminder: Reminder, now: Date, baseDate: Date): Date | null {
+		const recurrence = reminder.recurrence;
+		const [hours, minutes] = reminder.appointmentTime!.split(':').map(Number);
+		
+		let nextDate = new Date(now);
+		nextDate.setHours(hours, minutes, 0, 0);
+
+		// If today's time has passed, start from tomorrow
+		if (nextDate <= now) {
+			nextDate.setDate(nextDate.getDate() + 1);
+		}
+
+		switch (recurrence) {
+			case 'daily':
+				return nextDate;
+			case 'weekly':
+				const targetDay = baseDate.getDay();
+				while (nextDate.getDay() !== targetDay) {
+					nextDate.setDate(nextDate.getDate() + 1);
+				}
+				return nextDate;
+			case 'monthly':
+				const targetDate = baseDate.getDate();
+				nextDate.setDate(targetDate);
+				if (nextDate <= now) {
+					nextDate.setMonth(nextDate.getMonth() + 1);
+					nextDate.setDate(targetDate);
+				}
+				return nextDate;
+			case 'custom':
+				if (!reminder.weekdays || reminder.weekdays.length === 0) {
+					console.warn(`Custom recurrence reminder ${reminder.id} has no weekdays set`);
+					return null;
+				}
+				
+				// Find next occurrence on selected weekdays
+				for (let i = 0; i < 7; i++) {
+					if (reminder.weekdays.includes(nextDate.getDay())) {
+						return nextDate;
+					}
+					nextDate.setDate(nextDate.getDate() + 1);
+				}
+				return null;
+			default:
+				console.error(`Unknown recurrence type: ${recurrence}`);
+				return null;
+		}
+	}
+
+	function calculateLegacyExecution(reminder: Reminder, now: Date): Date | null {
+		// Fallback for old reminders without mode property
+		if (!reminder.interval) {
+			return null;
+		}
+
+		switch (reminder.interval) {
+			case 'minutes':
+				return new Date(now.getTime() + (reminder.intervalValue || 1) * 60 * 1000);
+			case 'hours':
+				return new Date(now.getTime() + (reminder.intervalValue || 1) * 60 * 60 * 1000);
+			case 'days':
+				return new Date(now.getTime() + (reminder.intervalValue || 1) * 24 * 60 * 60 * 1000);
+			case 'weeks':
+				return new Date(now.getTime() + (reminder.intervalValue || 1) * 7 * 24 * 60 * 60 * 1000);
+			case 'months':
+				const nextMonth = new Date(now);
+				nextMonth.setMonth(nextMonth.getMonth() + (reminder.intervalValue || 1));
+				return nextMonth;
+			case 'specific':
+				if (!reminder.specificDate) {
+					return null;
+				}
+				const specificDate = new Date(reminder.specificDate);
+				if (specificDate <= now) {
+					return null;
+				}
+				return specificDate;
+			default:
+				return null;
 		}
 	}
 	
@@ -359,14 +561,69 @@
 	}
 
 	function formatReminderInfo(reminder: Reminder): string {
-		if (reminder.interval === 'specific' && reminder.specificDate) {
-			const date = new Date(reminder.specificDate);
-			const dateStr = date.toLocaleDateString('de-DE');
-			const timeStr = date.toLocaleTimeString('de-DE', { hour: '2-digit', minute: '2-digit' });
-			return `Am ${dateStr} um ${timeStr}`;
+		const mode = reminder.mode || 'interval';
+		
+		switch (mode) {
+			case 'interval':
+				if (reminder.beginAt) {
+					const beginDate = new Date(reminder.beginAt);
+					const dateStr = beginDate.toLocaleDateString('de-DE');
+					const timeStr = reminder.beginAtTime || beginDate.toLocaleTimeString('de-DE', { hour: '2-digit', minute: '2-digit' });
+					return `Alle ${reminder.intervalValue} ${intervalLabels[reminder.interval!]} (ab ${dateStr} ${timeStr})`;
+				}
+				return `Alle ${reminder.intervalValue} ${intervalLabels[reminder.interval!]}`;
+				
+			case 'scheduled':
+				if (reminder.interval && reminder.intervalValue && reminder.beginAt && reminder.beginAtTime) {
+					const beginDate = new Date(reminder.beginAt);
+					const dateStr = beginDate.toLocaleDateString('de-DE');
+					const timeStr = reminder.beginAtTime;
+					return `Alle ${reminder.intervalValue} ${intervalLabels[reminder.interval]} ab ${dateStr} um ${timeStr}`;
+				}
+				return 'Geplante Erinnerung';
+				
+			case 'appointment':
+				if (reminder.appointmentDate && reminder.appointmentTime) {
+					const date = new Date(reminder.appointmentDate);
+					const dateStr = date.toLocaleDateString('de-DE');
+					const timeStr = reminder.appointmentTime;
+					
+					const recurrence = reminder.recurrence || 'once';
+					switch (recurrence) {
+						case 'once':
+							return `Termin am ${dateStr} um ${timeStr}`;
+						case 'daily':
+							return `Täglich um ${timeStr}`;
+						case 'weekly':
+							const dayName = date.toLocaleDateString('de-DE', { weekday: 'long' });
+							return `Jeden ${dayName} um ${timeStr}`;
+						case 'monthly':
+							const day = date.getDate();
+							return `Jeden ${day}. des Monats um ${timeStr}`;
+						case 'custom':
+							if (reminder.weekdays && reminder.weekdays.length > 0) {
+								const dayNames = ['Sonntag', 'Montag', 'Dienstag', 'Mittwoch', 'Donnerstag', 'Freitag', 'Samstag'];
+								const selectedDays = reminder.weekdays.map(day => dayNames[day]).join(', ');
+								return `Jeden ${selectedDays} um ${timeStr}`;
+							}
+							return `Benutzerdefiniert um ${timeStr}`;
+						default:
+							return `Termin am ${dateStr} um ${timeStr}`;
+					}
+				}
+				return 'Termin-Erinnerung';
+				
+			default:
+				// Fallback für alte Erinnerungen
+				if (reminder.interval === 'specific' && reminder.specificDate) {
+					const date = new Date(reminder.specificDate);
+					const dateStr = date.toLocaleDateString('de-DE');
+					const timeStr = date.toLocaleTimeString('de-DE', { hour: '2-digit', minute: '2-digit' });
+					return `Am ${dateStr} um ${timeStr}`;
+				}
+				return `Alle ${reminder.intervalValue} ${intervalLabels[reminder.interval!]}`;
 		}
-	return `Alle ${reminder.intervalValue} ${intervalLabels[reminder.interval]}`;
-}
+	}
 
 	function getTimeUntilNextReminder(reminder: Reminder): string {
 			timeUpdateTrigger;
@@ -908,7 +1165,7 @@ onDestroy(() => {
 								style="{getCustomColorStyle(reminder.color)}"
 							></div>
 							<div class="reminder-text flex-1 min-w-0">
-								<h3 class="text-xl text-subheading text-card-foreground mb-3 truncate">{reminder.name}</h3>
+								<h3 class="text-xl text-subheading text-card-foreground mb-3 truncate">{reminder.title || reminder.name || 'Unbenannte Erinnerung'}</h3>
 								<div class="reminder-info space-y-2">
 									<div class="flex items-center gap-2 text-sm text-body">
 										{#if reminder.interval === 'specific'}

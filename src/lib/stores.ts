@@ -4,18 +4,28 @@ import type { Writable } from 'svelte/store';
 // Types
 export type ReminderInterval = 'minutes' | 'hours' | 'days' | 'weeks' | 'months' | 'specific';
 export type ReminderColor = 'blue' | 'green' | 'purple' | 'red' | 'orange' | 'pink' | string; // Allow custom hex colors
+export type ReminderMode = 'interval' | 'scheduled' | 'appointment';
+export type AppointmentRecurrence = 'once' | 'daily' | 'weekly' | 'monthly' | 'custom';
 
 export interface Reminder {
 	id: string;
-	name: string;
-	interval: ReminderInterval;
-	intervalValue: number;
-	specificDate?: string;
-	specificTime?: string;
+	title: string;
+	message: string;
 	color: ReminderColor;
+	interval?: ReminderInterval;
+	intervalValue?: number;
+	specificDate?: string; // Nur für Legacy-Support
+	specificTime?: string; // Nur für Legacy-Support
+	mode?: ReminderMode;
+	beginAt?: string; // Für scheduled und interval Modi mit BeginAt
+	beginAtTime?: string; // Für scheduled und interval Modi mit BeginAt
+	appointmentDate?: string; // Für appointment Modus
+	appointmentTime?: string; // Für appointment Modus
+	recurrence?: AppointmentRecurrence; // Für appointment Modus
+	weekdays?: number[]; // Für appointment Modus mit custom recurrence
+	recurrenceEndDate?: string; // Für appointment Modus
 	createdAt: string;
-	lastNotified?: string;
-	active: boolean;
+	updatedAt: string;
 }
 
 export interface AppSettings {
