@@ -103,13 +103,9 @@
 			updating = true;
 			updateSetting('language', $settings.language);
 			await invoke('update_setting', { key: 'language', value: $settings.language });
-			// Aktualisiere das Tray-Menü mit der neuen Sprache
 			await invoke('update_tray_menu');
-			
-			// Setze einen Flag im localStorage, um zu merken, dass Settings geöffnet bleiben sollen
 			localStorage.setItem('keepSettingsOpen', 'true');
 			
-			// Lade die Seite neu, um alle Sprachänderungen zu übernehmen
 			window.location.reload();
 		} catch (error) {
 			console.error('Failed to update language:', error);

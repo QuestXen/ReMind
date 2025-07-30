@@ -108,15 +108,12 @@
 	}
 
 	onMount(() => {
-		// Store cleanup functions
 		let unlistenUpdateStart: (() => void) | undefined;
 		let unlistenUpdateInstalling: (() => void) | undefined;
 		let unlistenUpdateNotAvailable: (() => void) | undefined;
 		let unlistenUpdateError: (() => void) | undefined;
 
-		// Async initialization function
 		async function initializeApp() {
-			// Listen for tray update events
 			unlistenUpdateStart = await listen('update-check-started', () => {
 				trayUpdateTriggered = true;
 				updateStatus = 'checking';
@@ -146,7 +143,6 @@
 				trayUpdateTriggered = false;
 			});
 
-			// Initial app startup logic
 			if (!trayUpdateTriggered) {
 				const updateInfo = await checkForUpdates();
 
@@ -169,10 +165,8 @@
 			}
 		}
 
-		// Start async initialization
 		initializeApp().catch(console.error);
 
-		// Return cleanup function
 		return () => {
 			unlistenUpdateStart?.();
 			unlistenUpdateInstalling?.();

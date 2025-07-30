@@ -34,7 +34,6 @@
 	import { SvelteDate, SvelteMap } from 'svelte/reactivity';
 	import * as m from '../../paraglide/messages.js';
 
-	// Helper function to get the correct locale based on current language
 	function getCurrentLocale(): string {
 		return $settings.language === 'de' ? 'de-DE' : 'en-US';
 	}
@@ -57,16 +56,14 @@
 	let customColor = $state('#7f5af0');
 	let editCustomColor = $state('#7f5af0');
 
-	let reminderTimers = new SvelteMap<
-		string,
-		{
-			timerId: NodeJS.Timeout;
-			nextExecution: Date;
-			isActive: boolean;
-		}
-	>();
+	let backendTimerStatus = $state<Array<{
+		reminderId: string;
+		reminderName: string;
+		nextExecution: string | null;
+		isScheduled: boolean;
+	}>>([]);
 
-	let timerCleanupInterval: NodeJS.Timeout | null = null;
+	let statusUpdateInterval: NodeJS.Timeout | null = null;
 	let timeUpdateInterval: NodeJS.Timeout | null = null;
 	let timeUpdateTrigger = $state(0);
 
@@ -171,7 +168,7 @@
 				}
 			}, 500);
 
-			startReminderTimer(reminder);
+			await updateBackendTimerStatus();
 		} catch (error) {
 			console.error('Failed to create reminder:', error);
 		}
@@ -194,7 +191,7 @@
 	$effect(() => {
 		if (newReminderCalendarValue && newReminder.interval === 'specific') {
 			const dateStr = newReminderCalendarValue.toString();
-			newReminder.specificDate = `${dateStr}T${newReminder.specificTime}:00`;
+			newReminder.specificDate = `${dateStr}T${newReminder.specificTime}:00.000Z`;
 		}
 	});
 
@@ -202,7 +199,7 @@
 		if (editReminderCalendarValue && editingReminder && editingReminder.interval === 'specific') {
 			const dateStr = editReminderCalendarValue.toString();
 			const timeStr = editingReminder.specificTime || '12:00';
-			editingReminder.specificDate = `${dateStr}T${timeStr}:00`;
+			editingReminder.specificDate = `${dateStr}T${timeStr}:00.000Z`;
 		}
 	});
 
@@ -248,13 +245,11 @@
 
 	async function updateReminder() {
 		if (!editingReminder || !editingReminder.name.trim()) return;
-		clearReminderTimer(editingReminder.id);
-
 		try {
 			await invoke('update_reminder', { reminder: editingReminder });
 
 			updateReminderStore(editingReminder);
-			startReminderTimer(editingReminder);
+			await updateBackendTimerStatus();
 
 			const updatedReminderId = editingReminder.id;
 			const updatedReminderName = editingReminder.name;
@@ -278,9 +273,6 @@
 			console.log(`Updated reminder: ${updatedReminderName}`);
 		} catch (error) {
 			console.error('Failed to update reminder:', error);
-			if (editingReminder) {
-				startReminderTimer(editingReminder);
-			}
 		}
 	}
 
@@ -300,7 +292,6 @@
 	}
 
 	async function deleteReminder(id: string) {
-		clearReminderTimer(id);
 
 		const reminderElement = document.getElementById(`reminder-${id}`);
 		if (reminderElement) {
@@ -326,6 +317,7 @@
 				try {
 					await invoke('delete_reminder', { reminderId: id });
 					deleteReminderFromStore(id);
+					await updateBackendTimerStatus();
 					console.log(m.deleted_reminder_with_id({ id }));
 				} catch (error) {
 					console.error(m.failed_to_delete_reminder(), error);
@@ -338,6 +330,7 @@
 			try {
 				await invoke('delete_reminder', { reminderId: id });
 				deleteReminderFromStore(id);
+				await updateBackendTimerStatus();
 				console.log(`Deleted reminder with ID: ${id}`);
 			} catch (error) {
 				console.error('Failed to delete reminder:', error);
@@ -353,162 +346,46 @@
 			updateReminderStore(updatedReminder);
 
 			if (updatedReminder.active) {
-				startReminderTimer(updatedReminder);
 				console.log(m.activated_reminder({ name: updatedReminder.name }));
 			} else {
-				clearReminderTimer(updatedReminder.id);
 				console.log(m.deactivated_reminder({ name: updatedReminder.name }));
 			}
+			await updateBackendTimerStatus();
 		} catch (error) {
 			console.error(m.failed_to_toggle_reminder(), error);
 		}
 	}
 
-	function startReminderTimer(reminder: Reminder) {
-		if (!reminder.active) {
-			console.log(m.skipping_timer_inactive({ name: reminder.name }));
-			return;
-		}
-
-		clearReminderTimer(reminder.id);
-
-		const now = new Date();
-		let nextExecution: Date;
-
-		switch (reminder.interval) {
-			case 'minutes':
-				nextExecution = new SvelteDate(now.getTime() + reminder.intervalValue * 60 * 1000);
-				break;
-			case 'hours':
-				nextExecution = new SvelteDate(now.getTime() + reminder.intervalValue * 60 * 60 * 1000);
-				break;
-			case 'days':
-				nextExecution = new SvelteDate(now.getTime() + reminder.intervalValue * 24 * 60 * 60 * 1000);
-				break;
-			case 'weeks':
-				nextExecution = new SvelteDate(now.getTime() + reminder.intervalValue * 7 * 24 * 60 * 60 * 1000);
-				break;
-			case 'months':
-				nextExecution = new SvelteDate(now);
-				nextExecution.setMonth(nextExecution.getMonth() + reminder.intervalValue);
-				break;
-			case 'specific':
-				if (!reminder.specificDate) {
-					console.warn(`Reminder ${reminder.id} has no specific date set`);
-					return;
-				}
-				nextExecution = new SvelteDate(reminder.specificDate);
-				if (nextExecution <= now) {
-					console.warn(`Reminder ${reminder.id} scheduled for past date: ${nextExecution}`);
-					return;
-				}
-				break;
-			default:
-				console.error(`Unknown interval type: ${reminder.interval}`);
-				return;
-		}
-
-		const timeUntilExecution = nextExecution.getTime() - now.getTime();
-		if (timeUntilExecution <= 0) {
-			console.warn(`Invalid execution time for reminder ${reminder.id}`);
-			return;
-		}
-
-		if (timeUntilExecution > 2147483647) {
-			console.warn(
-				`Execution time too far in future for reminder ${reminder.id}, scheduling for max timeout`
-			);
-			const timerId = setTimeout(() => {
-				startReminderTimer(reminder);
-			}, 2147483647);
-
-			reminderTimers.set(reminder.id, {
-				timerId,
-				nextExecution,
-				isActive: true
-			});
-			return;
-		}
-
-		const timerId = setTimeout(async () => {
-			try {
-				await sendNotification(reminder);
-
-				if (reminder.interval !== 'specific') {
-					startReminderTimer(reminder);
-				} else {
-					clearReminderTimer(reminder.id);
-				}
-			} catch (error) {
-				console.error(`Failed to execute reminder ${reminder.id}:`, error);
-				setTimeout(() => startReminderTimer(reminder), 60000);
-			}
-		}, timeUntilExecution);
-
-		reminderTimers.set(reminder.id, {
-			timerId,
-			nextExecution,
-			isActive: true
-		});
-
-		console.log(
-		m.scheduled_reminder_for({ name: reminder.name, date: nextExecution.toLocaleString(getCurrentLocale()) })
-	);
-	}
-
-	function clearReminderTimer(reminderId: string) {
-		const timerInfo = reminderTimers.get(reminderId);
-		if (timerInfo) {
-			clearTimeout(timerInfo.timerId);
-			reminderTimers.delete(reminderId);
-			console.log(m.cleared_timer_for_reminder({ id: reminderId }));
-		}
-	}
-
-	function clearAllTimers() {
-		reminderTimers.forEach((timerInfo) => {
-			clearTimeout(timerInfo.timerId);
-		});
-		reminderTimers.clear();
-		console.log(m.cleared_all_reminder_timers());
-	}
-
-	async function sendNotification(reminder: Reminder) {
+	async function updateBackendTimerStatus() {
 		try {
-			await invoke('send_notification_with_settings', {
-				title: 'ReMind',
-				body: m.notification_body({ name: reminder.name })
-			});
-			console.log(m.notification_sent_for_reminder({ name: reminder.name }));
-
-			const timestamp = new Date().toISOString();
-			await invoke('update_reminder_last_notified', {
-				reminderId: reminder.id,
-				timestamp
-			});
-			reminder.lastNotified = timestamp;
+			const status = await invoke('get_timer_status');
+			backendTimerStatus = status as Array<{
+				reminderId: string;
+				reminderName: string;
+				nextExecution: string | null;
+				isScheduled: boolean;
+			}>;
 		} catch (error) {
-			console.error(m.failed_to_send_notification(), error);
-			if ('Notification' in window && Notification.permission === 'granted') {
-				new Notification('ReMind', {
-					body: m.reminder_notification({ name: reminder.name }),
-					icon: '/favicon.ico'
-				});
-			}
+			console.error('Failed to get timer status from backend:', error);
 		}
 	}
+
+	function getTimerStatusForReminder(reminderId: string) {
+		return backendTimerStatus.find(status => status.reminderId === reminderId);
+	}
+
+
 
 	function getTimerStatus() {
 		const status = {
-			activeTimers: reminderTimers.size,
-			timers: Array.from(reminderTimers.entries()).map(([id, timerInfo]) => {
-				const reminder = $reminders.find((r) => r.id === id);
+			activeTimers: backendTimerStatus.length,
+			timers: backendTimerStatus.map((timerStatus) => {
 				return {
-					id,
-					name: reminder?.name || m.unknown(),
-					nextExecution: timerInfo.nextExecution.toLocaleString(getCurrentLocale()),
-					timeUntilExecution: Math.max(0, timerInfo.nextExecution.getTime() - Date.now()),
-					isActive: timerInfo.isActive
+					id: timerStatus.reminderId,
+					name: timerStatus.reminderName,
+					nextExecution: timerStatus.nextExecution ? new Date(timerStatus.nextExecution).toLocaleString(getCurrentLocale()) : 'N/A',
+					timeUntilExecution: timerStatus.nextExecution ? Math.max(0, new Date(timerStatus.nextExecution).getTime() - Date.now()) : 0,
+					isScheduled: timerStatus.isScheduled
 				};
 			})
 		};
@@ -518,13 +395,13 @@
 
 	interface DebugWindow extends Window {
 		getTimerStatus?: () => any;
-		clearAllTimers?: () => void;
+		updateBackendTimerStatus?: () => Promise<void>;
 	}
 
 	if (typeof window !== 'undefined' && import.meta.env.DEV) {
 		(window as DebugWindow).getTimerStatus = getTimerStatus;
-		(window as DebugWindow).clearAllTimers = clearAllTimers;
-		console.log('Debug functions available: getTimerStatus(), clearAllTimers()');
+		(window as DebugWindow).updateBackendTimerStatus = updateBackendTimerStatus;
+		console.log('Debug functions available: getTimerStatus(), updateBackendTimerStatus()');
 	}
 
 	function formatReminderInfo(reminder: Reminder): string {
@@ -544,13 +421,14 @@
 			return '';
 		}
 
-		const timerInfo = reminderTimers.get(reminder.id);
-		if (!timerInfo) {
+		const timerStatus = getTimerStatusForReminder(reminder.id);
+		if (!timerStatus || !timerStatus.nextExecution) {
 			return '';
 		}
 
 		const now = new Date();
-		const timeUntil = timerInfo.nextExecution.getTime() - now.getTime();
+		const nextExecution = new Date(timerStatus.nextExecution);
+		const timeUntil = nextExecution.getTime() - now.getTime();
 
 		if (timeUntil <= 0) {
 			return '';
@@ -585,36 +463,22 @@
 	onMount(() => {
 		let isInitialLoad = true;
 
-		// Prüfe, ob Settings nach Sprachwechsel geöffnet bleiben sollen
 		if (localStorage.getItem('keepSettingsOpen') === 'true') {
 			showSettings = true;
 			localStorage.removeItem('keepSettingsOpen');
 		}
 
-		const unsubscribe = reminders.subscribe((currentReminders) => {
+		const unsubscribe = reminders.subscribe(async (currentReminders) => {
 			if (isInitialLoad) {
-				clearAllTimers();
-
-				currentReminders.forEach((reminder) => {
-					startReminderTimer(reminder);
-				});
-
-				console.log(`Initialized ${currentReminders.length} reminders with timers`);
+				console.log(`Initialized ${currentReminders.length} reminders`);
 				isInitialLoad = false;
+				await updateBackendTimerStatus();
 			}
 		});
 
-		timerCleanupInterval = setInterval(
-			() => {
-				const now = new Date();
-				reminderTimers.forEach((timerInfo, id) => {
-					if (timerInfo.nextExecution <= now && !timerInfo.isActive) {
-						clearReminderTimer(id);
-					}
-				});
-			},
-			5 * 60 * 1000
-		);
+		statusUpdateInterval = setInterval(() => {
+			updateBackendTimerStatus();
+		}, 30 * 1000); 
 
 		timeUpdateInterval = setInterval(() => {
 			timeUpdateTrigger++;
@@ -626,9 +490,8 @@
 	});
 
 	onDestroy(() => {
-		clearAllTimers();
-		if (timerCleanupInterval) {
-			clearInterval(timerCleanupInterval);
+		if (statusUpdateInterval) {
+			clearInterval(statusUpdateInterval);
 		}
 		if (timeUpdateInterval) {
 			clearInterval(timeUpdateInterval);

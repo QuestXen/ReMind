@@ -12,6 +12,7 @@ use commands::notifications::{
 use commands::system_info::get_system_info;
 use commands::tray::{handle_window_event, hide_window, quit_app, setup_system_tray, show_window, check_update_from_tray, update_tray_menu};
 use commands::updater::{check_for_updates, install_update, check_and_install_update};
+use commands::timer::{TimerManager, get_timer_status};
 use tauri::Manager;
 
 #[allow(clippy::missing_panics_doc)]
@@ -87,6 +88,14 @@ pub fn run() {
                 );
             }
 
+            let timer_manager = TimerManager::new(app.handle().clone());
+            app.manage(timer_manager.clone());
+            
+            // Start timer manager in a proper async context
+            let timer_manager_clone = timer_manager.clone();
+            tauri::async_runtime::spawn(async move {
+                timer_manager_clone.start().await;
+            });
             Ok(())
         })
         .plugin(tauri_plugin_notification::init())
@@ -127,7 +136,8 @@ pub fn run() {
             update_tray_menu,
             check_for_updates,
             install_update,
-            check_and_install_update
+            check_and_install_update,
+            get_timer_status
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

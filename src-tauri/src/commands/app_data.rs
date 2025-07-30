@@ -1,8 +1,11 @@
 use super::errors::Error;
+use super::timer::TimerManager;
+use chrono::Utc;
 use serde::{Deserialize, Serialize};
 use std::fs;
 use std::path::PathBuf;
 use tauri::{AppHandle, Manager};
+
 
 const CURRENT_DATA_VERSION: u32 = 2;
 
@@ -23,6 +26,7 @@ pub struct Reminder {
     pub created_at: String,
     pub last_notified: Option<String>,
     pub active: bool,
+    pub next_execution: Option<String>,  // Neu: ISO-String für nächsten Ausführungszeitpunkt
 }
 
 // Legacy reminder structure for migration support
@@ -57,6 +61,8 @@ impl From<LegacyReminder> for Reminder {
             last_notified: legacy.last_notified,
             // Default to true for existing reminders
             active: legacy.active.unwrap_or(true),
+            // Initialize next_execution as None for legacy reminders
+            next_execution: None,
         }
     }
 }
@@ -109,7 +115,7 @@ fn get_app_data_file_path(app: &AppHandle) -> Result<PathBuf, Error> {
     Ok(app_data_dir.join("app_data.json"))
 }
 
-fn load_app_data(app: &AppHandle) -> Result<AppData, Error> {
+pub fn load_app_data(app: &AppHandle) -> Result<AppData, Error> {
     let file_path = get_app_data_file_path(app)?;
 
     if !file_path.exists() {
@@ -279,7 +285,7 @@ fn migrate_v1_to_v2(data: &mut serde_json::Value) -> Result<(), Error> {
     Ok(())
 }
 
-fn save_app_data(app: &AppHandle, app_data: &AppData) -> Result<(), Error> {
+pub fn save_app_data(app: &AppHandle, app_data: &AppData) -> Result<(), Error> {
     let file_path = get_app_data_file_path(app)?;
     let json_data = serde_json::to_string_pretty(app_data)
         .map_err(|e| Error::Io(std::io::Error::new(std::io::ErrorKind::Other, e)))?;
@@ -305,27 +311,71 @@ pub fn load_reminders(app: AppHandle) -> Result<Vec<Reminder>, Error> {
 
 #[tauri::command]
 pub fn delete_reminder(app: AppHandle, reminder_id: String) -> Result<(), Error> {
+    // Cancel timer first
+    if let Some(timer_manager) = app.try_state::<TimerManager>() {
+        let timer_manager = timer_manager.inner().clone();
+        let reminder_id_clone = reminder_id.clone();
+        tauri::async_runtime::spawn(async move {
+            timer_manager.cancel_reminder(&reminder_id_clone).await;
+        });
+    }
+    
     let mut app_data = load_app_data(&app).unwrap_or_default();
     app_data.reminders.retain(|r| r.id != reminder_id);
     save_app_data(&app, &app_data)?;
     Ok(())
 }
 
+// In add_reminder:
 #[tauri::command]
-pub fn add_reminder(app: AppHandle, reminder: Reminder) -> Result<(), Error> {
+pub fn add_reminder(app: AppHandle, mut reminder: Reminder) -> Result<(), Error> {
+    // Calculate next execution before saving
+    reminder.next_execution = TimerManager::calculate_next_execution(&reminder, Utc::now()).map(|d| d.to_rfc3339());
+    
     let mut app_data = load_app_data(&app).unwrap_or_default();
-    app_data.reminders.push(reminder);
+    app_data.reminders.push(reminder.clone());
     save_app_data(&app, &app_data)?;
+    
+    // Schedule timer if active
+    if reminder.active {
+            if let Some(timer_manager) = app.try_state::<TimerManager>() {
+                let timer_manager = timer_manager.inner().clone();
+                tauri::async_runtime::spawn(async move { 
+                    timer_manager.schedule_reminder(reminder).await; 
+                });
+            }
+        }
     Ok(())
 }
 
 #[tauri::command]
-pub fn update_reminder(app: AppHandle, reminder: Reminder) -> Result<(), Error> {
+pub fn update_reminder(app: AppHandle, mut reminder: Reminder) -> Result<(), Error> {
+    // Cancel old timer first
+    if let Some(timer_manager) = app.try_state::<TimerManager>() {
+        let timer_manager = timer_manager.inner().clone();
+        let reminder_id = reminder.id.clone();
+        tauri::async_runtime::spawn(async move {
+            timer_manager.cancel_reminder(&reminder_id).await;
+        });
+    }
+    
+    // Calculate next execution
+    reminder.next_execution = TimerManager::calculate_next_execution(&reminder, Utc::now()).map(|d| d.to_rfc3339());
+    
     let mut app_data = load_app_data(&app).unwrap_or_default();
-
     if let Some(existing_reminder) = app_data.reminders.iter_mut().find(|r| r.id == reminder.id) {
-        *existing_reminder = reminder;
+        *existing_reminder = reminder.clone();
         save_app_data(&app, &app_data)?;
+        
+        // Schedule new timer if active
+        if reminder.active {
+            if let Some(timer_manager) = app.try_state::<TimerManager>() {
+                let timer_manager = timer_manager.inner().clone();
+                tauri::async_runtime::spawn(async move {
+                    timer_manager.schedule_reminder(reminder).await;
+                });
+            }
+        }
     }
 
     Ok(())
