@@ -1,7 +1,7 @@
 {
   "name": "remind",
   "private": true,
-  "version": "0.9.0",
+  "version": "1.0.0",
   "description": "A desktop notification app to help you stay organized and never miss important reminders. Set up custom reminders for tasks, events, and deadlines, and receive timely notifications on your desktop.",
   "author": {
     "name": "Artjom"

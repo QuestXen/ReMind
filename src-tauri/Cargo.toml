@@ -1,6 +1,6 @@
 [package]
 name = "ReMind"
-version = "0.9.0"
+version = "1.0.0"
 description = "A desktop notification app to help you stay organized and never miss important reminders. Set up custom reminders for tasks, events, and deadlines, and receive timely notifications on your desktop."
 authors = ["Artjom"]
 repository = "https://github.com/questxen/ReMind"
