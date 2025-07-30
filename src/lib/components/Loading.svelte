@@ -104,9 +104,7 @@
 				<p class="text-muted-foreground text-lg">{message}</p>
 
 				{#if isUpdating}
-					<p class="text-muted-foreground text-sm">
-						m.warning_update()
-					</p>
+					<p class="text-muted-foreground text-sm">m.warning_update()</p>
 				{/if}
 			</div>
 		{/if}

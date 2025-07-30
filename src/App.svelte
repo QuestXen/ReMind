@@ -6,7 +6,7 @@
 	import Loading from '$lib/components/Loading.svelte';
 	import { reminders, settings, isLoading, loadingError } from '$lib/stores';
 	import type { Reminder, AppSettings } from '$lib/stores';
-	import { setLocale } from "./paraglide/runtime.js";
+	import { setLocale } from './paraglide/runtime.js';
 	import * as m from './paraglide/messages.js';
 
 	let retryCount = 0;
@@ -101,9 +101,7 @@
 			console.log(`Retry attempt ${retryCount}/${MAX_RETRIES}`);
 			await loadAppData();
 		} else {
-			loadingError.set(
-				m.max_retries_reached()
-			);
+			loadingError.set(m.max_retries_reached());
 		}
 	}
 
@@ -124,7 +122,9 @@
 			unlistenUpdateInstalling = await listen('update-installing', (event) => {
 				updateStatus = 'updating';
 				const updateInfo = event.payload as UpdateInfo;
-				updateMessage = updateInfo.version ? m.update_installing_version({ version: updateInfo.version }) : m.update_installing();
+				updateMessage = updateInfo.version
+					? m.update_installing_version({ version: updateInfo.version })
+					: m.update_installing();
 			});
 
 			unlistenUpdateNotAvailable = await listen('update-not-available', () => {
@@ -147,8 +147,10 @@
 				const updateInfo = await checkForUpdates();
 
 				if (updateInfo?.available) {
-				console.log(`Update available: ${updateInfo.version}`);
-				updateMessage = updateInfo.version ? m.update_available({ version: updateInfo.version }) : m.update_checking();
+					console.log(`Update available: ${updateInfo.version}`);
+					updateMessage = updateInfo.version
+						? m.update_available({ version: updateInfo.version })
+						: m.update_checking();
 
 					await new Promise((resolve) => setTimeout(resolve, 1000));
 
@@ -179,7 +181,11 @@
 <main class="bg-background min-h-screen">
 	{#if $isLoading || updateStatus !== 'done' || trayUpdateTriggered}
 		<Loading
-			message={trayUpdateTriggered ? updateMessage : (updateStatus === 'done' ? m.loading_reminders() : updateMessage)}
+			message={trayUpdateTriggered
+				? updateMessage
+				: updateStatus === 'done'
+					? m.loading_reminders()
+					: updateMessage}
 			error={$loadingError}
 			retryCallback={$loadingError ? retryLoading : undefined}
 			isUpdating={updateStatus === 'updating'}

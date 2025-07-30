@@ -55,12 +55,14 @@
 	let customColor = $state('#7f5af0');
 	let editCustomColor = $state('#7f5af0');
 
-	let backendTimerStatus = $state<Array<{
-		reminderId: string;
-		reminderName: string;
-		nextExecution: string | null;
-		isScheduled: boolean;
-	}>>([]);
+	let backendTimerStatus = $state<
+		Array<{
+			reminderId: string;
+			reminderName: string;
+			nextExecution: string | null;
+			isScheduled: boolean;
+		}>
+	>([]);
 
 	let statusUpdateInterval: NodeJS.Timeout | null = null;
 	let timeUpdateInterval: NodeJS.Timeout | null = null;
@@ -97,8 +99,6 @@
 		{ value: 'months', label: m.days() },
 		{ value: 'specific', label: m.specific_date() }
 	];
-
-
 
 	const intervalLabels = {
 		minutes: m.minutes_lowercase(),
@@ -209,7 +209,7 @@
 				const day = String(utcDate.getDate()).padStart(2, '0');
 				const hours = String(utcDate.getHours()).padStart(2, '0');
 				const minutes = String(utcDate.getMinutes()).padStart(2, '0');
-				
+
 				editReminderCalendarValue = parseDate(`${year}-${month}-${day}`);
 				if (editingReminder) {
 					editingReminder.specificTime = `${hours}:${minutes}`;
@@ -293,7 +293,6 @@
 	}
 
 	async function deleteReminder(id: string) {
-
 		const reminderElement = document.getElementById(`reminder-${id}`);
 		if (reminderElement) {
 			const animationStyles = ['animate-delete-scale-rotate', 'animate-delete-slide-out'];
@@ -366,7 +365,7 @@
 				nextExecution: string | null;
 				isScheduled: boolean;
 			}>;
-			
+
 			await checkAndUpdateExpiredReminders();
 		} catch (error) {
 			console.error('Failed to get timer status from backend:', error);
@@ -377,10 +376,10 @@
 		try {
 			const updatedReminders = await invoke('load_reminders');
 			const currentReminders = $reminders;
-			
+
 			for (const backendReminder of updatedReminders as Reminder[]) {
-				const frontendReminder = currentReminders.find(r => r.id === backendReminder.id);
-				
+				const frontendReminder = currentReminders.find((r) => r.id === backendReminder.id);
+
 				if (frontendReminder && frontendReminder.active && !backendReminder.active) {
 					updateReminderStore(backendReminder);
 					console.log(`Automatically deactivated expired reminder: ${backendReminder.name}`);
@@ -392,10 +391,8 @@
 	}
 
 	function getTimerStatusForReminder(reminderId: string) {
-		return backendTimerStatus.find(status => status.reminderId === reminderId);
+		return backendTimerStatus.find((status) => status.reminderId === reminderId);
 	}
-
-
 
 	function getTimerStatus() {
 		const status = {
@@ -404,8 +401,12 @@
 				return {
 					id: timerStatus.reminderId,
 					name: timerStatus.reminderName,
-					nextExecution: timerStatus.nextExecution ? new Date(timerStatus.nextExecution).toLocaleString(getCurrentLocale()) : 'N/A',
-					timeUntilExecution: timerStatus.nextExecution ? Math.max(0, new Date(timerStatus.nextExecution).getTime() - Date.now()) : 0,
+					nextExecution: timerStatus.nextExecution
+						? new Date(timerStatus.nextExecution).toLocaleString(getCurrentLocale())
+						: 'N/A',
+					timeUntilExecution: timerStatus.nextExecution
+						? Math.max(0, new Date(timerStatus.nextExecution).getTime() - Date.now())
+						: 0,
 					isScheduled: timerStatus.isScheduled
 				};
 			})
@@ -415,7 +416,16 @@
 	}
 
 	interface DebugWindow extends Window {
-		getTimerStatus?: () => any;
+		getTimerStatus?: () => {
+			activeTimers: number;
+			timers: Array<{
+				id: string;
+				name: string;
+				nextExecution: string;
+				timeUntilExecution: number;
+				isScheduled: boolean;
+			}>;
+		};
 		updateBackendTimerStatus?: () => Promise<void>;
 	}
 
@@ -429,7 +439,10 @@
 		if (reminder.interval === 'specific' && reminder.specificDate) {
 			const date = new Date(reminder.specificDate);
 			const dateStr = date.toLocaleDateString(getCurrentLocale());
-			const timeStr = date.toLocaleTimeString(getCurrentLocale(), { hour: '2-digit', minute: '2-digit' });
+			const timeStr = date.toLocaleTimeString(getCurrentLocale(), {
+				hour: '2-digit',
+				minute: '2-digit'
+			});
 			return `${dateStr} ${timeStr}`;
 		}
 		return `${m.every()} ${reminder.intervalValue} ${intervalLabels[reminder.interval]}`;
@@ -690,72 +703,94 @@
 															>
 																<CalendarIcon class="mr-2 h-4 w-4" />
 																{editReminderCalendarValue
-															? editReminderCalendarValue
-																	.toDate(getLocalTimeZone())
-																	.toLocaleDateString(getCurrentLocale())
-															: m.date()}
+																	? editReminderCalendarValue
+																			.toDate(getLocalTimeZone())
+																			.toLocaleDateString(getCurrentLocale())
+																	: m.date()}
 															</Popover.Trigger>
 															<Popover.Content class="w-auto p-0" align="start">
 																<Calendar
-																									type="single"
-																									bind:value={editReminderCalendarValue}
-																									class="rounded-md border-0"
-																									locale={getCurrentLocale()}
-																									minValue={today(getLocalTimeZone())}
-																									onValueChange={() => (editReminderPopoverOpen = false)}
-																								/>
+																	type="single"
+																	bind:value={editReminderCalendarValue}
+																	class="rounded-md border-0"
+																	locale={getCurrentLocale()}
+																	minValue={today(getLocalTimeZone())}
+																	onValueChange={() => (editReminderPopoverOpen = false)}
+																/>
 															</Popover.Content>
 														</Popover.Root>
 													</div>
 													<div>
-																						<label
-																							for="reminder-specific-time"
-																							class="text-subheading text-card-foreground mb-3 block text-sm"
-																							>{m.time()}</label
-																						>
-																						<Popover.Root>
-																							<Popover.Trigger
-																								class="border-border hover:bg-accent bg-input border-border text-foreground focus:border-ring focus:ring-ring/20 hover:border-ring/50 flex h-10 w-full items-center justify-start rounded-xl border px-4 text-left font-normal transition-all duration-300 focus:ring-4"
-																							>
-																								<Clock class="mr-2 h-4 w-4" />
-																								{editingReminder?.specificTime || m.select_time()}
-																							</Popover.Trigger>
-																							<Popover.Content class="w-64 p-4 bg-card border-border rounded-xl shadow-xl">
-																								<div class="grid grid-cols-2 gap-4">
-																									<div>
-																										<p class="text-sm font-medium mb-2 capitalize">{m.hour()}</p>
-																										<div class="max-h-32 overflow-y-auto rounded-md border border-border">
-																											{#each Array.from({length: 24}, (_, i) => i.toString().padStart(2, '0')) as hour}
-																												<button type="button" class="w-full py-1 hover:bg-muted text-foreground" onclick={() => {
-																													if (editingReminder) {
-																														const [_, m] = (editingReminder.specificTime || '00:00').split(':');
-																														editingReminder.specificTime = `${hour}:${m}`;
-																													}
-																												}}>
-																													{hour}
-																												</button>
-																											{/each}
-																										</div>
-																									</div>
-																									<div>
-																										<p class="text-sm font-medium mb-2 capitalize">{m.minute()}</p>
-																										<div class="max-h-32 overflow-y-auto rounded-md border border-border">
-																											{#each Array.from({length: 60}, (_, i) => i.toString().padStart(2, '0')) as minute}
-																												<button type="button" class="w-full py-1 hover:bg-muted text-foreground" onclick={() => {
-																													if (editingReminder) {
-																														const [h, _] = (editingReminder.specificTime || '00:00').split(':');
-																														editingReminder.specificTime = `${h}:${minute}`;
-																													}
-																												}}>
-																													{minute}
-																												</button>
-																											{/each}
-																										</div>
-																									</div>
-																								</div>
-																							</Popover.Content>
-																						</Popover.Root>
-																					</div>
+														<label
+															for="reminder-specific-time"
+															class="text-subheading text-card-foreground mb-3 block text-sm"
+															>{m.time()}</label
+														>
+														<Popover.Root>
+															<Popover.Trigger
+																class="border-border hover:bg-accent bg-input border-border text-foreground focus:border-ring focus:ring-ring/20 hover:border-ring/50 flex h-10 w-full items-center justify-start rounded-xl border px-4 text-left font-normal transition-all duration-300 focus:ring-4"
+															>
+																<Clock class="mr-2 h-4 w-4" />
+																{editingReminder?.specificTime || m.select_time()}
+															</Popover.Trigger>
+															<Popover.Content
+																class="bg-card border-border w-64 rounded-xl p-4 shadow-xl"
+															>
+																<div class="grid grid-cols-2 gap-4">
+																	<div>
+																		<p class="mb-2 text-sm font-medium capitalize">{m.hour()}</p>
+																		<div
+																			class="border-border max-h-32 overflow-y-auto rounded-md border"
+																		>
+																			{#each Array.from({ length: 24 }, (_, i) => i
+																					.toString()
+																					.padStart(2, '0')) as hour (hour)}
+																				<button
+																					type="button"
+																					class="hover:bg-muted text-foreground w-full py-1"
+																					onclick={() => {
+																						if (editingReminder) {
+																							const [, m] = (
+																								editingReminder.specificTime || '00:00'
+																							).split(':');
+																							editingReminder.specificTime = `${hour}:${m}`;
+																						}
+																					}}
+																				>
+																					{hour}
+																				</button>
+																			{/each}
+																		</div>
+																	</div>
+																	<div>
+																		<p class="mb-2 text-sm font-medium capitalize">{m.minute()}</p>
+																		<div
+																			class="border-border max-h-32 overflow-y-auto rounded-md border"
+																		>
+																			{#each Array.from({ length: 60 }, (_, i) => i
+																					.toString()
+																					.padStart(2, '0')) as minute (minute)}
+																				<button
+																					type="button"
+																					class="hover:bg-muted text-foreground w-full py-1"
+																					onclick={() => {
+																						if (editingReminder) {
+																							const [h] = (
+																								editingReminder.specificTime || '00:00'
+																							).split(':');
+																							editingReminder.specificTime = `${h}:${minute}`;
+																						}
+																					}}
+																				>
+																					{minute}
+																				</button>
+																			{/each}
+																		</div>
+																	</div>
+																</div>
+															</Popover.Content>
+														</Popover.Root>
+													</div>
 												</div>
 											{/if}
 										{:else if newReminder.interval !== 'specific'}
@@ -787,68 +822,90 @@
 														>
 															<CalendarIcon class="mr-2 h-4 w-4" />
 															{newReminderCalendarValue
-													? newReminderCalendarValue
-															.toDate(getLocalTimeZone())
-															.toLocaleDateString(getCurrentLocale())
-													: m.date()}
+																? newReminderCalendarValue
+																		.toDate(getLocalTimeZone())
+																		.toLocaleDateString(getCurrentLocale())
+																: m.date()}
 														</Popover.Trigger>
 														<Popover.Content class="w-auto p-0" align="start">
 															<Calendar
-																											type="single"
-																											bind:value={newReminderCalendarValue}
-																											class="rounded-md border-0"
-																											locale={getCurrentLocale()}
-																											minValue={today(getLocalTimeZone())}
-																											onValueChange={() => (newReminderPopoverOpen = false)}
-																										/>
+																type="single"
+																bind:value={newReminderCalendarValue}
+																class="rounded-md border-0"
+																locale={getCurrentLocale()}
+																minValue={today(getLocalTimeZone())}
+																onValueChange={() => (newReminderPopoverOpen = false)}
+															/>
 														</Popover.Content>
 													</Popover.Root>
 												</div>
 												<div>
-																							<label
-																								for="new-reminder-specific-time"
-																								class="text-subheading text-card-foreground mb-3 block text-sm"
-																								>{m.time()}</label
-																							>
-																							<Popover.Root>
-																								<Popover.Trigger
-																									class="border-border hover:bg-accent bg-input border-border text-foreground focus:border-ring focus:ring-ring/20 hover:border-ring/50 flex h-10 w-full items-center justify-start rounded-xl border px-4 text-left font-normal transition-all duration-300 focus:ring-4"
-																								>
-																									<Clock class="mr-2 h-4 w-4" />
-																									{newReminder.specificTime || m.select_time()}
-																								</Popover.Trigger>
-																								<Popover.Content class="w-64 p-4 bg-card border-border rounded-xl shadow-xl">
-																									<div class="grid grid-cols-2 gap-4">
-																										<div>
-																											<p class="text-sm font-medium mb-2 capitalize">{m.hour()}</p>
-																											<div class="max-h-32 overflow-y-auto rounded-md border border-border">
-																												{#each Array.from({length: 24}, (_, i) => i.toString().padStart(2, '0')) as hour}
-																													<button type="button" class="w-full py-1 hover:bg-muted text-foreground" onclick={() => {
-																														const [_, m] = (newReminder.specificTime || '00:00').split(':');
-																														newReminder.specificTime = `${hour}:${m}`;
-																													}}>
-																														{hour}
-																													</button>
-																												{/each}
-																											</div>
-																										</div>
-																										<div>
-																											<p class="text-sm font-medium mb-2 capitalize">{m.minute()}</p>
-																											<div class="max-h-32 overflow-y-auto rounded-md border border-border">
-																												{#each Array.from({length: 60}, (_, i) => i.toString().padStart(2, '0')) as minute}
-																													<button type="button" class="w-full py-1 hover:bg-muted text-foreground" onclick={() => {
-																														const [h, _] = (newReminder.specificTime || '00:00').split(':');
-																														newReminder.specificTime = `${h}:${minute}`;
-																													}}>
-																														{minute}
-																													</button>
-																												{/each}
-																											</div>
-																										</div>
-																									</div>
-																								</Popover.Content>
-																							</Popover.Root>
-																						</div>
+													<label
+														for="new-reminder-specific-time"
+														class="text-subheading text-card-foreground mb-3 block text-sm"
+														>{m.time()}</label
+													>
+													<Popover.Root>
+														<Popover.Trigger
+															class="border-border hover:bg-accent bg-input border-border text-foreground focus:border-ring focus:ring-ring/20 hover:border-ring/50 flex h-10 w-full items-center justify-start rounded-xl border px-4 text-left font-normal transition-all duration-300 focus:ring-4"
+														>
+															<Clock class="mr-2 h-4 w-4" />
+															{newReminder.specificTime || m.select_time()}
+														</Popover.Trigger>
+														<Popover.Content
+															class="bg-card border-border w-64 rounded-xl p-4 shadow-xl"
+														>
+															<div class="grid grid-cols-2 gap-4">
+																<div>
+																	<p class="mb-2 text-sm font-medium capitalize">{m.hour()}</p>
+																	<div
+																		class="border-border max-h-32 overflow-y-auto rounded-md border"
+																	>
+																		{#each Array.from({ length: 24 }, (_, i) => i
+																				.toString()
+																				.padStart(2, '0')) as hour (hour)}
+																			<button
+																				type="button"
+																				class="hover:bg-muted text-foreground w-full py-1"
+																				onclick={() => {
+																					const [, m] = (newReminder.specificTime || '00:00').split(
+																						':'
+																					);
+																					newReminder.specificTime = `${hour}:${m}`;
+																				}}
+																			>
+																				{hour}
+																			</button>
+																		{/each}
+																	</div>
+																</div>
+																<div>
+																	<p class="mb-2 text-sm font-medium capitalize">{m.minute()}</p>
+																	<div
+																		class="border-border max-h-32 overflow-y-auto rounded-md border"
+																	>
+																		{#each Array.from({ length: 60 }, (_, i) => i
+																				.toString()
+																				.padStart(2, '0')) as minute (minute)}
+																			<button
+																				type="button"
+																				class="hover:bg-muted text-foreground w-full py-1"
+																				onclick={() => {
+																					const [h] = (newReminder.specificTime || '00:00').split(
+																						':'
+																					);
+																					newReminder.specificTime = `${h}:${minute}`;
+																				}}
+																			>
+																				{minute}
+																			</button>
+																		{/each}
+																	</div>
+																</div>
+															</div>
+														</Popover.Content>
+													</Popover.Root>
+												</div>
 											</div>
 										{/if}
 									</div>
@@ -858,7 +915,7 @@
 											>{m.color()}</legend
 										>
 										<div class="flex items-center gap-4">
-											{#each Object.entries(colorClasses) as [color, classes]}
+											{#each Object.entries(colorClasses) as [color, classes] (color)}
 												{#if showEditForm}
 													<button
 														type="button"
@@ -894,7 +951,7 @@
 													<Popover.Trigger>
 														<button
 															type="button"
-															aria-label="{m.custom_color()}"
+															aria-label={m.custom_color()}
 															class="flex h-10 w-10 items-center justify-center overflow-hidden rounded-full transition-all duration-300 hover:scale-105 hover:shadow-md {editingReminder?.color?.startsWith(
 																'#'
 															)
@@ -990,7 +1047,7 @@
 																}}
 																class="bg-primary hover:bg-primary/90 text-primary-foreground w-full"
 															>
-{m.apply_color()}
+																{m.apply_color()}
 															</Button>
 														</div>
 													</Popover.Content>
@@ -1005,7 +1062,7 @@
 											class="bg-primary hover:bg-primary/90 text-primary-foreground text-subheading flex-1 rounded-xl border-0 py-4 transition-all duration-300 hover:scale-105 hover:shadow-lg"
 										>
 											<Bell class="mr-3 h-5 w-5" />
-{showEditForm ? m.update_reminder_button() : m.create_reminder_button()}
+											{showEditForm ? m.update_reminder_button() : m.create_reminder_button()}
 										</Button>
 										<Button
 											onclick={() => {
@@ -1032,7 +1089,7 @@
 											variant="outline"
 											class="border-border text-muted-foreground hover:bg-destructive/10 hover:text-destructive text-subheading hover:border-destructive flex-1 rounded-xl border-2 py-4 transition-all duration-300 hover:scale-105"
 										>
-{m.cancel()}
+											{m.cancel()}
 										</Button>
 									</div>
 								</Content>
@@ -1120,7 +1177,7 @@
 																></div>
 																<span class="leading-relaxed break-words">
 																	<span class="font-medium text-emerald-600"
-																					>{m.next_reminder_label()}</span
+																		>{m.next_reminder_label()}</span
 																	><br />
 																	<span class="text-caption"
 																		>{getTimeUntilNextReminder(reminder) || ''}</span
@@ -1133,9 +1190,9 @@
 															<div class="text-muted-foreground flex items-center gap-2 text-sm">
 																<div class="h-2 w-2 flex-shrink-0 rounded-full bg-gray-400"></div>
 																<span class="text-caption truncate"
-																						>{m.last_label()}: {new Date(reminder.lastNotified).toLocaleString(
-																						getCurrentLocale()
-																					)}</span
+																	>{m.last_label()}: {new Date(
+																		reminder.lastNotified
+																	).toLocaleString(getCurrentLocale())}</span
 																>
 															</div>
 														{/if}
@@ -1149,7 +1206,7 @@
 													<Button
 														onclick={() => startEditReminder(reminder)}
 														variant="outline"
-														class="border-border text-muted-foreground hover:bg-green-500/10 hover:border-green-500 hover:text-green-600 rounded-xl border-2 p-3 transition-all duration-300"
+														class="border-border text-muted-foreground rounded-xl border-2 p-3 transition-all duration-300 hover:border-green-500 hover:bg-green-500/10 hover:text-green-600"
 													>
 														<Edit class="h-4 w-4" />
 													</Button>

@@ -1,4 +1,4 @@
-import { paraglideVitePlugin } from '@inlang/paraglide-js'
+import { paraglideVitePlugin } from '@inlang/paraglide-js';
 import { svelte } from '@sveltejs/vite-plugin-svelte';
 import tailwindcss from '@tailwindcss/vite';
 import path from 'path';
@@ -7,7 +7,15 @@ import { defineConfig } from 'vite';
 const host = process.env.TAURI_DEV_HOST;
 
 export default defineConfig({
-	plugins: [paraglideVitePlugin({ project: './project.inlang', outdir: './src/paraglide', cleanOutdir: false }),svelte({ compilerOptions: { runes: true } }), tailwindcss()],
+	plugins: [
+		paraglideVitePlugin({
+			project: './project.inlang',
+			outdir: './src/paraglide',
+			cleanOutdir: false
+		}),
+		svelte({ compilerOptions: { runes: true } }),
+		tailwindcss()
+	],
 	resolve: {
 		alias: {
 			$lib: path.resolve('./src/lib')

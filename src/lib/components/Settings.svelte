@@ -8,7 +8,6 @@
 	import { invoke } from '@tauri-apps/api/core';
 	import TitleBar from './TitleBar.svelte';
 	import { settings, updateSetting } from '$lib/stores';
-	import { setLocale } from '../../paraglide/runtime.js';
 	import * as m from '../../paraglide/messages.js';
 
 	interface SystemInfo {
@@ -105,7 +104,7 @@
 			await invoke('update_setting', { key: 'language', value: $settings.language });
 			await invoke('update_tray_menu');
 			localStorage.setItem('keepSettingsOpen', 'true');
-			
+
 			window.location.reload();
 		} catch (error) {
 			console.error('Failed to update language:', error);
@@ -158,7 +157,12 @@
 									{m.language_description()}
 								</p>
 							</div>
-							<Select.Root type="single" name="language" bind:value={$settings.language} onValueChange={handleLanguageChange}>
+							<Select.Root
+								type="single"
+								name="language"
+								bind:value={$settings.language}
+								onValueChange={handleLanguageChange}
+							>
 								<Select.Trigger class="w-[180px]">
 									{triggerContent}
 								</Select.Trigger>
@@ -205,7 +209,9 @@
 						<div class="flex items-center justify-between">
 							<div class="space-y-1">
 								<h3 class="text-heading text-card-foreground text-lg">{m.notification_sound()}</h3>
-								<p class="text-muted-foreground text-body text-sm">{m.notification_sound_description()}</p>
+								<p class="text-muted-foreground text-body text-sm">
+									{m.notification_sound_description()}
+								</p>
 							</div>
 							<div class="flex items-center">
 								{#if loading}

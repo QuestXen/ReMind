@@ -3,7 +3,7 @@ import type { Writable } from 'svelte/store';
 
 // Types
 export type ReminderInterval = 'minutes' | 'hours' | 'days' | 'weeks' | 'months' | 'specific';
-export type ReminderColor = 'blue' | 'green' | 'purple' | 'red' | 'orange' | 'pink' | string; 
+export type ReminderColor = 'blue' | 'green' | 'purple' | 'red' | 'orange' | 'pink' | string;
 
 export interface Reminder {
 	id: string;
@@ -23,7 +23,7 @@ export interface AppSettings {
 	autostartEnabled: boolean;
 	theme?: string | null;
 	notificationSound: boolean;
-	[key: string]: unknown; 
+	[key: string]: unknown;
 }
 
 // Global Stores
@@ -36,7 +36,6 @@ export const settings: Writable<AppSettings> = writable({
 });
 export const isLoading: Writable<boolean> = writable(true);
 export const loadingError: Writable<string | null> = writable(null);
-
 
 export function updateReminder(updatedReminder: Reminder) {
 	reminders.update((currentReminders) =>
