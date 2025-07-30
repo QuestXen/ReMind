@@ -1,0 +1,186 @@
+2025-07-30T09:47:27.1275381Z Current runner version: '2.327.1'
+2025-07-30T09:47:27.1298861Z ##[group]Runner Image Provisioner
+2025-07-30T09:47:27.1299630Z Hosted Compute Agent
+2025-07-30T09:47:27.1300170Z Version: 20250711.363
+2025-07-30T09:47:27.1300754Z Commit: 6785254374ce925a23743850c1cb91912ce5c14c
+2025-07-30T09:47:27.1301353Z Build Date: 2025-07-11T20:04:25Z
+2025-07-30T09:47:27.1301876Z ##[endgroup]
+2025-07-30T09:47:27.1302354Z ##[group]Operating System
+2025-07-30T09:47:27.1302842Z Microsoft Windows Server 2022
+2025-07-30T09:47:27.1303334Z 10.0.20348
+2025-07-30T09:47:27.1303816Z Datacenter
+2025-07-30T09:47:27.1304278Z ##[endgroup]
+2025-07-30T09:47:27.1304683Z ##[group]Runner Image
+2025-07-30T09:47:27.1305244Z Image: windows-2022
+2025-07-30T09:47:27.1305704Z Version: 20250720.1.0
+2025-07-30T09:47:27.1306685Z Included Software: https://github.com/actions/runner-images/blob/win22/20250720.1/images/windows/Windows2022-Readme.md
+2025-07-30T09:47:27.1308344Z Image Release: https://github.com/actions/runner-images/releases/tag/win22%2F20250720.1
+2025-07-30T09:47:27.1309314Z ##[endgroup]
+2025-07-30T09:47:27.1310267Z ##[group]GITHUB_TOKEN Permissions
+2025-07-30T09:47:27.1311973Z Contents: write
+2025-07-30T09:47:27.1312478Z Metadata: read
+2025-07-30T09:47:27.1312953Z ##[endgroup]
+2025-07-30T09:47:27.1314941Z Secret source: Actions
+2025-07-30T09:47:27.1315591Z Prepare workflow directory
+2025-07-30T09:47:27.1647255Z Prepare all required actions
+2025-07-30T09:47:27.1703241Z Getting action download info
+2025-07-30T09:47:27.7986053Z ##[group]Download immutable action package 'actions/checkout@v4'
+2025-07-30T09:47:27.7987239Z Version: 4.2.2
+2025-07-30T09:47:27.7988244Z Digest: sha256:ccb2698953eaebd21c7bf6268a94f9c26518a7e38e27e0b83c1fe1ad049819b1
+2025-07-30T09:47:27.7989552Z Source commit SHA: 11bd71901bbe5b1630ceea73d27597364c9af683
+2025-07-30T09:47:27.7990386Z ##[endgroup]
+2025-07-30T09:47:27.9037757Z ##[group]Download immutable action package 'actions/setup-node@v4'
+2025-07-30T09:47:27.9038575Z Version: 4.4.0
+2025-07-30T09:47:27.9039360Z Digest: sha256:9427cefe82346e992fb5b949e3569b39d537ae41aa3086483b14eceebfc16bc1
+2025-07-30T09:47:27.9040355Z Source commit SHA: 49933ea5288caeca8642d1e84afbd3f7d6820020
+2025-07-30T09:47:27.9041022Z ##[endgroup]
+2025-07-30T09:47:28.0608111Z Download action repository 'pnpm/action-setup@v4' (SHA:a7487c7e89a18df4991f7f222e4898a00d66ddda)
+2025-07-30T09:47:29.0377199Z ##[group]Download immutable action package 'actions/cache@v4'
+2025-07-30T09:47:29.0378386Z Version: 4.2.3
+2025-07-30T09:47:29.0379620Z Digest: sha256:c8a3bb963e1f1826d8fcc8d1354f0dd29d8ac1db1d4f6f20247055ae11b81ed9
+2025-07-30T09:47:29.0381240Z Source commit SHA: 5a3ec84eff668545956fd18022155c47e93e2684
+2025-07-30T09:47:29.0382366Z ##[endgroup]
+2025-07-30T09:47:29.1703723Z Download action repository 'dtolnay/rust-toolchain@stable' (SHA:4305c38b25d97ef35a8ad1f985ccf2d2242004f2)
+2025-07-30T09:47:29.6990301Z Download action repository 'swatinem/rust-cache@v2' (SHA:98c8021b550208e191a6a3145459bfc9fb29c4c0)
+2025-07-30T09:47:30.7466273Z Download action repository 'tauri-apps/tauri-action@v0' (SHA:564aea5a8075c7a54c167bb0cf5b3255314a7f9d)
+2025-07-30T09:47:31.8474857Z Complete job name: publish-tauri (windows-latest)
+2025-07-30T09:47:31.9756282Z ##[group]Run actions/checkout@v4
+2025-07-30T09:47:31.9756943Z with:
+2025-07-30T09:47:31.9757132Z   repository: QuestXen/ReMind
+2025-07-30T09:47:31.9757523Z   token: ***
+2025-07-30T09:47:31.9757690Z   ssh-strict: true
+2025-07-30T09:47:31.9757848Z   ssh-user: git
+2025-07-30T09:47:31.9758026Z   persist-credentials: true
+2025-07-30T09:47:31.9758227Z   clean: true
+2025-07-30T09:47:31.9758418Z   sparse-checkout-cone-mode: true
+2025-07-30T09:47:31.9758655Z   fetch-depth: 1
+2025-07-30T09:47:31.9758848Z   fetch-tags: false
+2025-07-30T09:47:31.9759034Z   show-progress: true
+2025-07-30T09:47:31.9759227Z   lfs: false
+2025-07-30T09:47:31.9759384Z   submodules: false
+2025-07-30T09:47:31.9759558Z   set-safe-directory: true
+2025-07-30T09:47:31.9759935Z ##[endgroup]
+2025-07-30T09:47:32.1398469Z Syncing repository: QuestXen/ReMind
+2025-07-30T09:47:32.1399797Z ##[group]Getting Git version info
+2025-07-30T09:47:32.1400096Z Working directory is 'D:\a\ReMind\ReMind'
+2025-07-30T09:47:32.2592649Z [command]"C:\Program Files\Git\bin\git.exe" version
+2025-07-30T09:47:32.6384034Z git version 2.50.1.windows.1
+2025-07-30T09:47:32.6430395Z ##[endgroup]
+2025-07-30T09:47:32.6449506Z Temporarily overriding HOME='D:\a\_temp\ced43e60-dd0c-4be5-b90c-014fb34fc77b' before making global git config changes
+2025-07-30T09:47:32.6450371Z Adding repository directory to the temporary git global config as a safe directory
+2025-07-30T09:47:32.6460449Z [command]"C:\Program Files\Git\bin\git.exe" config --global --add safe.directory D:\a\ReMind\ReMind
+2025-07-30T09:47:32.6968059Z Deleting the contents of 'D:\a\ReMind\ReMind'
+2025-07-30T09:47:32.6973783Z ##[group]Initializing the repository
+2025-07-30T09:47:32.7055921Z [command]"C:\Program Files\Git\bin\git.exe" init D:\a\ReMind\ReMind
+2025-07-30T09:47:32.7622975Z Initialized empty Git repository in D:/a/ReMind/ReMind/.git/
+2025-07-30T09:47:32.7659231Z [command]"C:\Program Files\Git\bin\git.exe" remote add origin https://github.com/QuestXen/ReMind
+2025-07-30T09:47:32.8077261Z ##[endgroup]
+2025-07-30T09:47:32.8077669Z ##[group]Disabling automatic garbage collection
+2025-07-30T09:47:32.8086640Z [command]"C:\Program Files\Git\bin\git.exe" config --local gc.auto 0
+2025-07-30T09:47:32.8322250Z ##[endgroup]
+2025-07-30T09:47:32.8322652Z ##[group]Setting up auth
+2025-07-30T09:47:32.8335609Z [command]"C:\Program Files\Git\bin\git.exe" config --local --name-only --get-regexp core\.sshCommand
+2025-07-30T09:47:32.8579091Z [command]"C:\Program Files\Git\bin\git.exe" submodule foreach --recursive "sh -c \"git config --local --name-only --get-regexp 'core\.sshCommand' && git config --local --unset-all 'core.sshCommand' || :\""
+2025-07-30T09:47:33.8878029Z [command]"C:\Program Files\Git\bin\git.exe" config --local --name-only --get-regexp http\.https\:\/\/github\.com\/\.extraheader
+2025-07-30T09:47:33.9108364Z [command]"C:\Program Files\Git\bin\git.exe" submodule foreach --recursive "sh -c \"git config --local --name-only --get-regexp 'http\.https\:\/\/github\.com\/\.extraheader' && git config --local --unset-all 'http.https://github.com/.extraheader' || :\""
+2025-07-30T09:47:34.3150216Z [command]"C:\Program Files\Git\bin\git.exe" config --local http.https://github.com/.extraheader "AUTHORIZATION: basic ***"
+2025-07-30T09:47:34.3380500Z ##[endgroup]
+2025-07-30T09:47:34.3381157Z ##[group]Fetching the repository
+2025-07-30T09:47:34.3394894Z [command]"C:\Program Files\Git\bin\git.exe" -c protocol.version=2 fetch --no-tags --prune --no-recurse-submodules --depth=1 origin +a38fc55200a1320edee492b6f26434cf62047fc3:refs/tags/v1.0.0
+2025-07-30T09:47:35.6852595Z From https://github.com/QuestXen/ReMind
+2025-07-30T09:47:35.6853174Z  * [new ref]         a38fc55200a1320edee492b6f26434cf62047fc3 -> v1.0.0
+2025-07-30T09:47:35.6988624Z ##[endgroup]
+2025-07-30T09:47:35.6989107Z ##[group]Determining the checkout info
+2025-07-30T09:47:35.6992175Z ##[endgroup]
+2025-07-30T09:47:35.7004594Z [command]"C:\Program Files\Git\bin\git.exe" sparse-checkout disable
+2025-07-30T09:47:35.7335003Z [command]"C:\Program Files\Git\bin\git.exe" config --local --unset-all extensions.worktreeConfig
+2025-07-30T09:47:35.7539725Z ##[group]Checking out the ref
+2025-07-30T09:47:35.7547892Z [command]"C:\Program Files\Git\bin\git.exe" checkout --progress --force refs/tags/v1.0.0
+2025-07-30T09:47:35.8381212Z Note: switching to 'refs/tags/v1.0.0'.
+2025-07-30T09:47:35.8381996Z 
+2025-07-30T09:47:35.8382383Z You are in 'detached HEAD' state. You can look around, make experimental
+2025-07-30T09:47:35.8383134Z changes and commit them, and you can discard any commits you make in this
+2025-07-30T09:47:35.8383820Z state without impacting any branches by switching back to a branch.
+2025-07-30T09:47:35.8384251Z 
+2025-07-30T09:47:35.8384530Z If you want to create a new branch to retain commits you create, you may
+2025-07-30T09:47:35.8386418Z do so (now or later) by using -c with the switch command. Example:
+2025-07-30T09:47:35.8386839Z 
+2025-07-30T09:47:35.8387002Z   git switch -c <new-branch-name>
+2025-07-30T09:47:35.8387300Z 
+2025-07-30T09:47:35.8387444Z Or undo this operation with:
+2025-07-30T09:47:35.8387707Z 
+2025-07-30T09:47:35.8387829Z   git switch -
+2025-07-30T09:47:35.8388028Z 
+2025-07-30T09:47:35.8388366Z Turn off this advice by setting config variable advice.detachedHead to false
+2025-07-30T09:47:35.8388857Z 
+2025-07-30T09:47:35.8389000Z HEAD is now at a38fc55 Release v1.0.0
+2025-07-30T09:47:35.8413562Z ##[endgroup]
+2025-07-30T09:47:35.8704996Z [command]"C:\Program Files\Git\bin\git.exe" log -1 --format=%H
+2025-07-30T09:47:35.8895554Z a38fc55200a1320edee492b6f26434cf62047fc3
+2025-07-30T09:47:35.9236876Z ##[group]Run actions/setup-node@v4
+2025-07-30T09:47:35.9237201Z with:
+2025-07-30T09:47:35.9237362Z   node-version: 23
+2025-07-30T09:47:35.9237551Z   always-auth: false
+2025-07-30T09:47:35.9237754Z   check-latest: false
+2025-07-30T09:47:35.9238057Z   token: ***
+2025-07-30T09:47:35.9238220Z ##[endgroup]
+2025-07-30T09:47:36.1662917Z Attempting to download 23...
+2025-07-30T09:47:37.0414962Z Not found in manifest. Falling back to download directly from Node
+2025-07-30T09:47:37.1254137Z Acquiring 23.11.1 - x64 from https://nodejs.org/dist/v23.11.1/node-v23.11.1-win-x64.7z
+2025-07-30T09:47:37.3816179Z Extracting ...
+2025-07-30T09:47:39.4333428Z Adding to the cache ...
+2025-07-30T09:47:43.8029566Z Done
+2025-07-30T09:47:43.8036105Z ##[group]Environment details
+2025-07-30T09:47:45.4788770Z node: v23.11.1
+2025-07-30T09:47:45.4789090Z npm: 10.9.2
+2025-07-30T09:47:45.4789391Z yarn: 1.22.22
+2025-07-30T09:47:45.4790578Z ##[endgroup]
+2025-07-30T09:47:45.5016313Z ##[group]Run pnpm/action-setup@v4
+2025-07-30T09:47:45.5016607Z with:
+2025-07-30T09:47:45.5016764Z   version: 9
+2025-07-30T09:47:45.5016925Z   dest: ~/setup-pnpm
+2025-07-30T09:47:45.5017112Z   run_install: null
+2025-07-30T09:47:45.5017314Z   package_json_file: package.json
+2025-07-30T09:47:45.5017523Z   standalone: false
+2025-07-30T09:47:45.5017692Z ##[endgroup]
+2025-07-30T09:47:45.5830066Z ##[group]Running self-installer...
+2025-07-30T09:47:46.3384655Z Progress: resolved 1, reused 0, downloaded 0, added 0
+2025-07-30T09:47:46.3491676Z Packages: +1
+2025-07-30T09:47:46.3492023Z +
+2025-07-30T09:47:49.1102627Z Progress: resolved 1, reused 0, downloaded 1, added 0
+2025-07-30T09:47:50.7636536Z Progress: resolved 1, reused 0, downloaded 1, added 1
+2025-07-30T09:47:50.7639139Z Progress: resolved 1, reused 0, downloaded 1, added 1, done
+2025-07-30T09:47:50.8141874Z 
+2025-07-30T09:47:50.8142583Z dependencies:
+2025-07-30T09:47:50.8143150Z + pnpm 9.15.9 (10.13.1 is available)
+2025-07-30T09:47:50.8143450Z 
+2025-07-30T09:47:50.8252245Z Done in 5s
+2025-07-30T09:47:50.8427722Z ##[endgroup]
+2025-07-30T09:47:50.8432930Z Installation Completed!
+2025-07-30T09:47:50.8671455Z ##[group]Run STORE_PATH="D:\a\_temp/pnpm-store"
+2025-07-30T09:47:50.8671884Z [36;1mSTORE_PATH="D:\a\_temp/pnpm-store"[0m
+2025-07-30T09:47:50.8672180Z [36;1mmkdir -p $STORE_PATH[0m
+2025-07-30T09:47:50.8672427Z [36;1mpnpm config set store-dir $STORE_PATH[0m
+2025-07-30T09:47:50.8672714Z [36;1mecho "STORE_PATH=$STORE_PATH" >> $GITHUB_ENV[0m
+2025-07-30T09:47:50.8687759Z shell: C:\Program Files\Git\bin\bash.EXE --noprofile --norc -e -o pipefail {0}
+2025-07-30T09:47:50.8688122Z env:
+2025-07-30T09:47:50.8688353Z   PNPM_HOME: C:\Users\runneradmin\setup-pnpm\node_modules\.bin
+2025-07-30T09:47:50.8688631Z ##[endgroup]
+2025-07-30T09:47:51.6202646Z  ERROR  packages field missing or empty
+2025-07-30T09:47:51.6204288Z For help, run: pnpm help config
+2025-07-30T09:47:51.6332935Z ##[error]Process completed with exit code 1.
+2025-07-30T09:47:51.6504222Z Post job cleanup.
+2025-07-30T09:47:51.7356853Z Pruning is unnecessary.
+2025-07-30T09:47:51.7577581Z Post job cleanup.
+2025-07-30T09:47:51.9840340Z [command]"C:\Program Files\Git\bin\git.exe" version
+2025-07-30T09:47:52.0053251Z git version 2.50.1.windows.1
+2025-07-30T09:47:52.0119441Z Temporarily overriding HOME='D:\a\_temp\a029874a-5cf7-400b-8b22-8561d03174c3' before making global git config changes
+2025-07-30T09:47:52.0120244Z Adding repository directory to the temporary git global config as a safe directory
+2025-07-30T09:47:52.0130461Z [command]"C:\Program Files\Git\bin\git.exe" config --global --add safe.directory D:\a\ReMind\ReMind
+2025-07-30T09:47:52.0372432Z [command]"C:\Program Files\Git\bin\git.exe" config --local --name-only --get-regexp core\.sshCommand
+2025-07-30T09:47:52.0601828Z [command]"C:\Program Files\Git\bin\git.exe" submodule foreach --recursive "sh -c \"git config --local --name-only --get-regexp 'core\.sshCommand' && git config --local --unset-all 'core.sshCommand' || :\""
+2025-07-30T09:47:52.4876191Z [command]"C:\Program Files\Git\bin\git.exe" config --local --name-only --get-regexp http\.https\:\/\/github\.com\/\.extraheader
+2025-07-30T09:47:52.5086486Z http.https://github.com/.extraheader
+2025-07-30T09:47:52.5120170Z [command]"C:\Program Files\Git\bin\git.exe" config --local --unset-all http.https://github.com/.extraheader
+2025-07-30T09:47:52.5339686Z [command]"C:\Program Files\Git\bin\git.exe" submodule foreach --recursive "sh -c \"git config --local --name-only --get-regexp 'http\.https\:\/\/github\.com\/\.extraheader' && git config --local --unset-all 'http.https://github.com/.extraheader' || :\""
+2025-07-30T09:47:52.9957900Z Cleaning up orphan processes
