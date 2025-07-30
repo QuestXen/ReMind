@@ -147,7 +147,6 @@
 					<h1 class="text-heading text-foreground mb-4 text-3xl">{m.settings()}</h1>
 				</div>
 
-				<!-- Language Setting -->
 				<div class="bg-card border-border mb-6 rounded-3xl border p-8">
 					<div class="space-y-6">
 						<div class="flex items-center justify-between">
@@ -180,7 +179,6 @@
 					</div>
 				</div>
 
-				<!-- Autostart Setting -->
 				<div class="bg-card border-border mb-6 rounded-3xl border p-8">
 					<div class="space-y-6">
 						<div class="flex items-center justify-between">
@@ -203,7 +201,6 @@
 					</div>
 				</div>
 
-				<!-- Notification Sound Setting -->
 				<div class="bg-card border-border rounded-3xl border p-8">
 					<div class="space-y-6">
 						<div class="flex items-center justify-between">
