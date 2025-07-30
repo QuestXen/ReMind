@@ -49,14 +49,14 @@
 						></path>
 					</svg>
 				</div>
-				<h2 class="text-heading text-foreground mb-2 text-xl">m.loading_error()</h2>
+				<h2 class="text-heading text-foreground mb-2 text-xl">{m.loading_error()}</h2>
 				<p class="text-muted-foreground text-body text-sm">{error}</p>
 				{#if retryCallback}
 					<button
 						onclick={retryCallback}
 						class="bg-primary hover:bg-primary/90 text-primary-foreground rounded-lg px-6 py-2 font-medium transition-colors"
 					>
-						m.retry()
+						{m.retry()}
 					</button>
 				{/if}
 			</div>
@@ -104,7 +104,7 @@
 				<p class="text-muted-foreground text-lg">{message}</p>
 
 				{#if isUpdating}
-					<p class="text-muted-foreground text-sm">m.warning_update()</p>
+					<p class="text-muted-foreground text-sm">{m.warning_update()}</p>
 				{/if}
 			</div>
 		{/if}
