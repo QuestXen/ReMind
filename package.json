@@ -16,6 +16,7 @@
     "lint": "prettier --check . && eslint .",
     "set-version": "node scripts/update-version.cjs",
     "release": "node scripts/release.cjs",
+    "rl": "node scripts/release2.cjs",
     "tauri": "tauri",
     "machine-translate": "inlang machine translate --project project.inlang"
   },
