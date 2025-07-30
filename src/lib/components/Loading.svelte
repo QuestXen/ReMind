@@ -1,5 +1,6 @@
 <script lang="ts">
 	import { onMount } from 'svelte';
+	import * as m from '../../paraglide/messages.js';
 
 	interface Props {
 		message?: string;
@@ -9,7 +10,7 @@
 	}
 
 	let {
-		message = 'Lade Daten...',
+		message = m.loading_data(),
 		retryCallback,
 		error = null,
 		isUpdating = false
@@ -48,14 +49,14 @@
 						></path>
 					</svg>
 				</div>
-				<h2 class="text-heading text-foreground mb-2 text-xl">Fehler beim Laden</h2>
+				<h2 class="text-heading text-foreground mb-2 text-xl">m.loading_error()</h2>
 				<p class="text-muted-foreground text-body text-sm">{error}</p>
 				{#if retryCallback}
 					<button
 						onclick={retryCallback}
 						class="bg-primary hover:bg-primary/90 text-primary-foreground rounded-lg px-6 py-2 font-medium transition-colors"
 					>
-						Erneut versuchen
+						m.retry()
 					</button>
 				{/if}
 			</div>
@@ -104,7 +105,7 @@
 
 				{#if isUpdating}
 					<p class="text-muted-foreground text-sm">
-						Bitte schließen Sie die Anwendung nicht während des Updates.
+						m.warning_update()
 					</p>
 				{/if}
 			</div>

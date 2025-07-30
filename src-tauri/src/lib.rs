@@ -10,7 +10,7 @@ use commands::notifications::{
     test_notification_with_settings
 };
 use commands::system_info::get_system_info;
-use commands::tray::{handle_window_event, hide_window, quit_app, setup_system_tray, show_window, check_update_from_tray};
+use commands::tray::{handle_window_event, hide_window, quit_app, setup_system_tray, show_window, check_update_from_tray, update_tray_menu};
 use commands::updater::{check_for_updates, install_update, check_and_install_update};
 use tauri::Manager;
 
@@ -124,6 +124,7 @@ pub fn run() {
             hide_window,
             quit_app,
             check_update_from_tray,
+            update_tray_menu,
             check_for_updates,
             install_update,
             check_and_install_update

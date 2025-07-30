@@ -27,11 +27,17 @@
 		reminders,
 		addReminder,
 		updateReminder as updateReminderStore,
-		deleteReminderFromStore
+		deleteReminderFromStore,
+		settings
 	} from '$lib/stores';
 	import type { Reminder, ReminderInterval, ReminderColor } from '$lib/stores';
 	import { SvelteDate, SvelteMap } from 'svelte/reactivity';
 	import * as m from '../../paraglide/messages.js';
+
+	// Helper function to get the correct locale based on current language
+	function getCurrentLocale(): string {
+		return $settings.language === 'de' ? 'de-DE' : 'en-US';
+	}
 
 	let showCreateForm = $state(false);
 	let showEditForm = $state(false);
@@ -108,11 +114,11 @@
 	})();
 
 	const intervalLabels = {
-		minutes: m.minutes(),
-		hours: m.hours(),
-		days: m.days(),
-		weeks: m.weeks(),
-		months: m.days(),
+		minutes: m.minutes_lowercase(),
+		hours: m.hours_lowercase(),
+		days: m.days_lowercase(),
+		weeks: m.weeks_lowercase(),
+		months: m.months_lowercase(),
 		specific: m.specific_date()
 	};
 
@@ -320,9 +326,9 @@
 				try {
 					await invoke('delete_reminder', { reminderId: id });
 					deleteReminderFromStore(id);
-					console.log(`Deleted reminder with ID: ${id}`);
+					console.log(m.deleted_reminder_with_id({ id }));
 				} catch (error) {
-					console.error('Failed to delete reminder:', error);
+					console.error(m.failed_to_delete_reminder(), error);
 					if (reminderElement) {
 						reminderElement.classList.remove(randomAnimation);
 					}
@@ -348,19 +354,19 @@
 
 			if (updatedReminder.active) {
 				startReminderTimer(updatedReminder);
-				console.log(`Activated reminder: ${updatedReminder.name}`);
+				console.log(m.activated_reminder({ name: updatedReminder.name }));
 			} else {
 				clearReminderTimer(updatedReminder.id);
-				console.log(`Deactivated reminder: ${updatedReminder.name}`);
+				console.log(m.deactivated_reminder({ name: updatedReminder.name }));
 			}
 		} catch (error) {
-			console.error('Failed to toggle reminder active status:', error);
+			console.error(m.failed_to_toggle_reminder(), error);
 		}
 	}
 
 	function startReminderTimer(reminder: Reminder) {
 		if (!reminder.active) {
-			console.log(`Skipping timer for inactive reminder: ${reminder.name}`);
+			console.log(m.skipping_timer_inactive({ name: reminder.name }));
 			return;
 		}
 
@@ -446,8 +452,8 @@
 		});
 
 		console.log(
-			`Scheduled reminder "${reminder.name}" for ${nextExecution.toLocaleString('de-DE')}`
-		);
+		m.scheduled_reminder_for({ name: reminder.name, date: nextExecution.toLocaleString(getCurrentLocale()) })
+	);
 	}
 
 	function clearReminderTimer(reminderId: string) {
@@ -455,7 +461,7 @@
 		if (timerInfo) {
 			clearTimeout(timerInfo.timerId);
 			reminderTimers.delete(reminderId);
-			console.log(`Cleared timer for reminder ${reminderId}`);
+			console.log(m.cleared_timer_for_reminder({ id: reminderId }));
 		}
 	}
 
@@ -464,16 +470,16 @@
 			clearTimeout(timerInfo.timerId);
 		});
 		reminderTimers.clear();
-		console.log('Cleared all reminder timers');
+		console.log(m.cleared_all_reminder_timers());
 	}
 
 	async function sendNotification(reminder: Reminder) {
 		try {
 			await invoke('send_notification_with_settings', {
 				title: 'ReMind',
-				body: `Erinnerung: ${reminder.name}`
+				body: m.notification_body({ name: reminder.name })
 			});
-			console.log(`Notification sent for reminder: ${reminder.name}`);
+			console.log(m.notification_sent_for_reminder({ name: reminder.name }));
 
 			const timestamp = new Date().toISOString();
 			await invoke('update_reminder_last_notified', {
@@ -482,7 +488,7 @@
 			});
 			reminder.lastNotified = timestamp;
 		} catch (error) {
-			console.error('Failed to send notification:', error);
+			console.error(m.failed_to_send_notification(), error);
 			if ('Notification' in window && Notification.permission === 'granted') {
 				new Notification('ReMind', {
 					body: m.reminder_notification({ name: reminder.name }),
@@ -499,8 +505,8 @@
 				const reminder = $reminders.find((r) => r.id === id);
 				return {
 					id,
-					name: reminder?.name || 'Unknown',
-					nextExecution: timerInfo.nextExecution.toLocaleString('de-DE'),
+					name: reminder?.name || m.unknown(),
+					nextExecution: timerInfo.nextExecution.toLocaleString(getCurrentLocale()),
 					timeUntilExecution: Math.max(0, timerInfo.nextExecution.getTime() - Date.now()),
 					isActive: timerInfo.isActive
 				};
@@ -524,8 +530,8 @@
 	function formatReminderInfo(reminder: Reminder): string {
 		if (reminder.interval === 'specific' && reminder.specificDate) {
 			const date = new Date(reminder.specificDate);
-			const dateStr = date.toLocaleDateString('de-DE');
-			const timeStr = date.toLocaleTimeString('de-DE', { hour: '2-digit', minute: '2-digit' });
+			const dateStr = date.toLocaleDateString(getCurrentLocale());
+			const timeStr = date.toLocaleTimeString(getCurrentLocale(), { hour: '2-digit', minute: '2-digit' });
 			return `${dateStr} ${timeStr}`;
 		}
 		return `${m.every()} ${reminder.intervalValue} ${intervalLabels[reminder.interval]}`;
@@ -578,6 +584,12 @@
 
 	onMount(() => {
 		let isInitialLoad = true;
+
+		// Prüfe, ob Settings nach Sprachwechsel geöffnet bleiben sollen
+		if (localStorage.getItem('keepSettingsOpen') === 'true') {
+			showSettings = true;
+			localStorage.removeItem('keepSettingsOpen');
+		}
 
 		const unsubscribe = reminders.subscribe((currentReminders) => {
 			if (isInitialLoad) {
@@ -658,7 +670,7 @@
 							class="bg-primary hover:bg-primary/90 text-primary-foreground text-subheading rounded-2xl border-0 px-8 py-4 shadow-lg transition-all duration-300 hover:scale-105 hover:shadow-xl"
 						>
 							<Plus class="mr-3 h-5 w-5" />
-							Neue Erinnerung
+							{m.new_reminder()}
 						</Button>
 					</div>
 
@@ -670,20 +682,20 @@
 							>
 								<Content class="space-y-8 p-8">
 									<h2 class="text-heading text-card-foreground mb-6 text-3xl">
-										{showEditForm ? 'Erinnerung bearbeiten' : 'Neue Erinnerung erstellen'}
+										{showEditForm ? m.edit_reminder() : m.new_reminder()}
 									</h2>
 									<div class="transition-all duration-300">
 										<label
 											for="reminder-name"
 											class="text-subheading text-card-foreground mb-3 block text-sm"
-											>Erinnerungsname</label
+											>{m.reminder_name()}</label
 										>
 										{#if showEditForm}
 											<Input
 												id="reminder-name"
 												bind:value={editingReminder!.name}
 												autocomplete="off"
-												placeholder="z.B. Medikamente nehmen, Meeting vorbereiten..."
+												placeholder={m.reminder_name_placeholder()}
 												class="border-border focus:border-ring focus:ring-ring bg-input focus:bg-background text-body text-foreground h-12 w-full rounded-xl px-4 transition-all duration-300"
 											/>
 										{:else}
@@ -691,7 +703,7 @@
 												id="reminder-name"
 												bind:value={newReminder.name}
 												autocomplete="off"
-												placeholder="z.B. Medikamente nehmen, Wasser trinken..."
+												placeholder={m.reminder_name_placeholder()}
 												class="border-border focus:border-ring focus:ring-ring bg-input focus:bg-background text-body text-foreground h-12 w-full rounded-xl px-4 transition-all duration-300"
 											/>
 										{/if}
@@ -702,7 +714,7 @@
 											<label
 												for="reminder-interval"
 												class="text-subheading text-card-foreground mb-3 block text-sm"
-												>Intervall</label
+												>{m.interval()}</label
 											>
 											{#if showEditForm && editingReminder}
 												<Select.Root
@@ -717,7 +729,7 @@
 													</Select.Trigger>
 													<Select.Content>
 														<Select.Group>
-															<Select.Label>Intervall wählen</Select.Label>
+															<Select.Label>{m.select_interval()}</Select.Label>
 															{#each intervalOptions as option (option.value)}
 																<Select.Item value={option.value} label={option.label}>
 																	{option.label}
@@ -739,7 +751,7 @@
 													</Select.Trigger>
 													<Select.Content>
 														<Select.Group>
-															<Select.Label>Intervall wählen</Select.Label>
+															<Select.Label>{m.select_interval()}</Select.Label>
 															{#each intervalOptions as option (option.value)}
 																<Select.Item value={option.value} label={option.label}>
 																	{option.label}
@@ -757,7 +769,7 @@
 													<label
 														for="reminder-interval-value"
 														class="text-subheading text-card-foreground mb-3 block text-sm"
-														>Anzahl</label
+														>{m.amount()}</label
 													>
 													<Input
 														id="reminder-interval-value"
@@ -774,7 +786,7 @@
 														<label
 															for="reminder-specific-date"
 															class="text-subheading text-card-foreground mb-3 block text-sm"
-															>Datum wählen</label
+															>{m.date()}</label
 														>
 														<Popover.Root bind:open={editReminderPopoverOpen}>
 															<Popover.Trigger
@@ -782,10 +794,10 @@
 															>
 																<CalendarIcon class="mr-2 h-4 w-4" />
 																{editReminderCalendarValue
-																	? editReminderCalendarValue
-																			.toDate(getLocalTimeZone())
-																			.toLocaleDateString('de-DE')
-																	: 'Datum auswählen'}
+															? editReminderCalendarValue
+																	.toDate(getLocalTimeZone())
+																	.toLocaleDateString(getCurrentLocale())
+															: m.date()}
 															</Popover.Trigger>
 															<Popover.Content class="w-auto p-0" align="start">
 																<Calendar
@@ -793,7 +805,7 @@
 																	bind:value={editReminderCalendarValue}
 																	class="rounded-md border-0"
 																	captionLayout="dropdown"
-																	locale="de-DE"
+																	locale={getCurrentLocale()}
 																	minValue={today(getLocalTimeZone())}
 																	onValueChange={() => (editReminderPopoverOpen = false)}
 																/>
@@ -804,18 +816,18 @@
 														<label
 															for="reminder-specific-time"
 															class="text-subheading text-card-foreground mb-3 block text-sm"
-															>Uhrzeit</label
+															>{m.time()}</label
 														>
 														<DropdownMenu.Root>
 															<DropdownMenu.Trigger
 																class="border-border hover:bg-accent bg-input border-border text-foreground focus:border-ring focus:ring-ring/20 hover:border-ring/50 flex h-10 w-full items-center justify-start rounded-xl border px-4 text-left font-normal transition-all duration-300 focus:ring-4"
 															>
 																<Clock class="mr-2 h-4 w-4" />
-																{editingReminder?.specificTime || 'Uhrzeit wählen'}
+																{editingReminder?.specificTime || m.select_time()}
 															</DropdownMenu.Trigger>
 															<DropdownMenu.Content class="max-h-60 w-48 overflow-y-auto">
 																<DropdownMenu.Group>
-																	<DropdownMenu.Label>Uhrzeit auswählen</DropdownMenu.Label>
+																	<DropdownMenu.Label>{m.select_time_label()}</DropdownMenu.Label>
 																	{#each timeOptions as timeOption (timeOption.value)}
 																		<DropdownMenu.Item
 																			onclick={() => {
@@ -853,7 +865,7 @@
 													<label
 														for="new-reminder-specific-date"
 														class="text-subheading text-card-foreground mb-3 block text-sm"
-														>Datum wählen</label
+														>{m.date()}</label
 													>
 													<Popover.Root bind:open={newReminderPopoverOpen}>
 														<Popover.Trigger
@@ -861,10 +873,10 @@
 														>
 															<CalendarIcon class="mr-2 h-4 w-4" />
 															{newReminderCalendarValue
-																? newReminderCalendarValue
-																		.toDate(getLocalTimeZone())
-																		.toLocaleDateString('de-DE')
-																: 'Datum auswählen'}
+													? newReminderCalendarValue
+															.toDate(getLocalTimeZone())
+															.toLocaleDateString(getCurrentLocale())
+													: m.date()}
 														</Popover.Trigger>
 														<Popover.Content class="w-auto p-0" align="start">
 															<Calendar
@@ -872,7 +884,7 @@
 																bind:value={newReminderCalendarValue}
 																class="rounded-md border-0"
 																captionLayout="dropdown"
-																locale="de-DE"
+																locale={getCurrentLocale()}
 																minValue={today(getLocalTimeZone())}
 																onValueChange={() => (newReminderPopoverOpen = false)}
 															/>
@@ -883,18 +895,18 @@
 													<label
 														for="new-reminder-specific-time"
 														class="text-subheading text-card-foreground mb-3 block text-sm"
-														>Uhrzeit</label
+														>{m.time()}</label
 													>
 													<DropdownMenu.Root>
 														<DropdownMenu.Trigger
 															class="border-border hover:bg-accent bg-input border-border text-foreground focus:border-ring focus:ring-ring/20 hover:border-ring/50 flex h-10 w-full items-center justify-start rounded-xl border px-4 text-left font-normal transition-all duration-300 focus:ring-4"
 														>
 															<Clock class="mr-2 h-4 w-4" />
-															{newReminder.specificTime || 'Uhrzeit wählen'}
+															{newReminder.specificTime || m.select_time()}
 														</DropdownMenu.Trigger>
 														<DropdownMenu.Content class="max-h-60 w-48 overflow-y-auto">
 															<DropdownMenu.Group>
-																<DropdownMenu.Label>Uhrzeit auswählen</DropdownMenu.Label>
+																<DropdownMenu.Label>{m.select_time_label()}</DropdownMenu.Label>
 																{#each timeOptions as timeOption (timeOption.value)}
 																	<DropdownMenu.Item
 																		onclick={() => (newReminder.specificTime = timeOption.value)}
@@ -912,7 +924,7 @@
 
 									<fieldset class="transition-all duration-300">
 										<legend class="text-subheading text-card-foreground mb-4 block text-sm"
-											>Akzentfarbe wählen</legend
+											>{m.color()}</legend
 										>
 										<div class="flex items-center gap-4">
 											{#each Object.entries(colorClasses) as [color, classes]}
@@ -925,7 +937,7 @@
 																showEditColorPicker = false;
 															}
 														}}
-														aria-label="Farbe {color} auswählen"
+														aria-label="{m.color()} {color}"
 														class="h-10 w-10 rounded-full {classes} {editingReminder?.color ===
 														color
 															? 'ring-primary scale-110 shadow-lg ring-4'
@@ -938,7 +950,7 @@
 															newReminder.color = color as ReminderColor;
 															showColorPicker = false;
 														}}
-														aria-label="Farbe {color} auswählen"
+														aria-label="{m.color()} {color}"
 														class="h-10 w-10 rounded-full {classes} {newReminder.color === color
 															? 'ring-primary scale-110 shadow-lg ring-4'
 															: 'ring-border ring-2'} transition-all duration-300 hover:scale-105 hover:shadow-md"
@@ -951,7 +963,7 @@
 													<Popover.Trigger>
 														<button
 															type="button"
-															aria-label="Benutzerdefinierte Farbe wählen"
+															aria-label="{m.custom_color()}"
 															class="flex h-10 w-10 items-center justify-center overflow-hidden rounded-full transition-all duration-300 hover:scale-105 hover:shadow-md {editingReminder?.color?.startsWith(
 																'#'
 															)
@@ -971,7 +983,7 @@
 													>
 														<div class="space-y-3">
 															<h4 class="text-card-foreground text-sm font-medium">
-																Benutzerdefinierte Farbe
+																{m.custom_color()}
 															</h4>
 															<ColorPicker
 																bind:hex={editCustomColor}
@@ -995,7 +1007,7 @@
 																}}
 																class="bg-primary hover:bg-primary/90 text-primary-foreground w-full"
 															>
-																Farbe übernehmen
+																{m.custom_color()}
 															</Button>
 														</div>
 													</Popover.Content>
@@ -1005,7 +1017,7 @@
 													<Popover.Trigger>
 														<button
 															type="button"
-															aria-label="Benutzerdefinierte Farbe wählen"
+															aria-label={m.custom_color_choose()}
 															class="flex h-10 w-10 items-center justify-center overflow-hidden rounded-full transition-all duration-300 hover:scale-105 hover:shadow-md {newReminder.color?.startsWith(
 																'#'
 															)
@@ -1025,7 +1037,7 @@
 													>
 														<div class="space-y-3">
 															<h4 class="text-card-foreground text-sm font-medium">
-																Benutzerdefinierte Farbe
+																{m.custom_color_title()}
 															</h4>
 															<ColorPicker
 																bind:hex={customColor}
@@ -1047,7 +1059,7 @@
 																}}
 																class="bg-primary hover:bg-primary/90 text-primary-foreground w-full"
 															>
-																Farbe übernehmen
+{m.apply_color()}
 															</Button>
 														</div>
 													</Popover.Content>
@@ -1062,7 +1074,7 @@
 											class="bg-primary hover:bg-primary/90 text-primary-foreground text-subheading flex-1 rounded-xl border-0 py-4 transition-all duration-300 hover:scale-105 hover:shadow-lg"
 										>
 											<Bell class="mr-3 h-5 w-5" />
-											{showEditForm ? 'Erinnerung aktualisieren' : 'Erinnerung erstellen'}
+{showEditForm ? m.update_reminder_button() : m.create_reminder_button()}
 										</Button>
 										<Button
 											onclick={() => {
@@ -1089,7 +1101,7 @@
 											variant="outline"
 											class="border-border text-muted-foreground hover:bg-destructive/10 hover:text-destructive text-subheading hover:border-destructive flex-1 rounded-xl border-2 py-4 transition-all duration-300 hover:scale-105"
 										>
-											Abbrechen
+{m.cancel()}
 										</Button>
 									</div>
 								</Content>
@@ -1107,10 +1119,10 @@
 							>
 								<Content class="py-16 text-center">
 									<h3 class="text-heading text-card-foreground mb-3 text-2xl">
-										Noch keine Erinnerungen
+										{m.no_reminders_yet()}
 									</h3>
 									<p class="text-muted-foreground text-caption text-lg">
-										Erstelle deine erste Erinnerung
+										{m.create_first_reminder()}
 									</p>
 								</Content>
 							</Card>
@@ -1177,7 +1189,7 @@
 																></div>
 																<span class="leading-relaxed break-words">
 																	<span class="font-medium text-emerald-600"
-																		>Nächste Erinnerung</span
+																					>{m.next_reminder_label()}</span
 																	><br />
 																	<span class="text-caption"
 																		>{getTimeUntilNextReminder(reminder) || ''}</span
@@ -1190,9 +1202,9 @@
 															<div class="text-muted-foreground flex items-center gap-2 text-sm">
 																<div class="h-2 w-2 flex-shrink-0 rounded-full bg-gray-400"></div>
 																<span class="text-caption truncate"
-																	>Zuletzt: {new Date(reminder.lastNotified).toLocaleString(
-																		'de-DE'
-																	)}</span
+																						>{m.last_label()}: {new Date(reminder.lastNotified).toLocaleString(
+																						getCurrentLocale()
+																					)}</span
 																>
 															</div>
 														{/if}
@@ -1232,8 +1244,8 @@
 															? 'border-emerald-400/50 bg-gradient-to-r from-emerald-50 to-green-50 text-emerald-600 hover:border-emerald-500'
 															: 'border-slate-300/50 bg-gradient-to-r from-slate-50 to-gray-50 text-slate-400 hover:border-slate-400'} group/toggle rounded-2xl p-3"
 														title={reminder.active
-															? 'Aktiv - Klicken zum Deaktivieren'
-															: 'Inaktiv - Klicken zum Aktivieren'}
+															? m.active_click_to_deactivate()
+															: m.inactive_click_to_activate()}
 													>
 														<div class="relative h-4 w-8 transition-all duration-500">
 															<div

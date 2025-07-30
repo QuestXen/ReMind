@@ -2,6 +2,7 @@ use tauri::menu::{Menu, MenuItem};
 use tauri::tray::{MouseButton, MouseButtonState, TrayIconBuilder, TrayIconEvent};
 use tauri::{AppHandle, Manager, WindowEvent, Emitter};
 use crate::commands::updater::check_and_install_update;
+use crate::commands::app_data::get_setting;
 
 #[tauri::command]
 pub fn show_window(app: AppHandle) -> Result<(), String> {
@@ -23,6 +24,16 @@ pub fn hide_window(app: AppHandle) -> Result<(), String> {
 #[tauri::command]
 pub fn quit_app(app: AppHandle) -> Result<(), String> {
     app.exit(0);
+    Ok(())
+}
+
+#[tauri::command]
+pub fn update_tray_menu(app: AppHandle) -> Result<(), String> {
+    // Remove existing tray icon to prevent duplicates
+    let _ = app.remove_tray_by_id("main");
+    
+    // Create new tray with updated language
+    setup_system_tray(&app).map_err(|e| e.to_string())?;
     Ok(())
 }
 
@@ -58,10 +69,30 @@ pub async fn check_update_from_tray(app: AppHandle) -> Result<(), String> {
     }
 }
 
+fn get_localized_text(app: &AppHandle, key: &str) -> String {
+    let language = get_setting(app.clone(), "language".to_string())
+        .and_then(|v| v.as_str().map(|s| s.to_string()))
+        .unwrap_or_else(|| "en".to_string());
+    
+    match (key, language.as_str()) {
+        ("show", "de") => "Anzeigen".to_string(),
+        ("show", _) => "Show".to_string(),
+        ("update", "de") => "Nach Updates suchen".to_string(),
+        ("update", _) => "Check for Updates".to_string(),
+        ("quit", "de") => "Beenden".to_string(),
+        ("quit", _) => "Quit".to_string(),
+        _ => key.to_string(),
+    }
+}
+
 pub fn setup_system_tray(app: &AppHandle) -> Result<(), Box<dyn std::error::Error>> {
-    let show_item = MenuItem::with_id(app, "show", "Anzeigen", true, None::<&str>)?;
-    let update_item = MenuItem::with_id(app, "update", "Nach Updates suchen", true, None::<&str>)?;
-    let quit_item = MenuItem::with_id(app, "quit", "Beenden", true, None::<&str>)?;
+    let show_text = get_localized_text(app, "show");
+    let update_text = get_localized_text(app, "update");
+    let quit_text = get_localized_text(app, "quit");
+    
+    let show_item = MenuItem::with_id(app, "show", &show_text, true, None::<&str>)?;
+    let update_item = MenuItem::with_id(app, "update", &update_text, true, None::<&str>)?;
+    let quit_item = MenuItem::with_id(app, "quit", &quit_text, true, None::<&str>)?;
     let menu = Menu::with_items(app, &[&show_item, &update_item, &quit_item])?;
 
     let _tray = TrayIconBuilder::with_id("main")

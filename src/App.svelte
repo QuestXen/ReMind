@@ -7,11 +7,12 @@
 	import { reminders, settings, isLoading, loadingError } from '$lib/stores';
 	import type { Reminder, AppSettings } from '$lib/stores';
 	import { setLocale } from "./paraglide/runtime.js";
+	import * as m from './paraglide/messages.js';
 
 	let retryCount = 0;
 	const MAX_RETRIES = 3;
 	let updateStatus = $state('checking'); // 'checking', 'updating', 'done'
-	let updateMessage = $state('Update Checken...');
+	let updateMessage = $state(m.update_checking());
 	let trayUpdateTriggered = $state(false);
 
 	interface UpdateInfo {
@@ -31,7 +32,7 @@
 
 	async function checkForUpdates(): Promise<UpdateInfo | null> {
 		try {
-			updateMessage = 'Update Checken...';
+			updateMessage = m.update_checking();
 			const updateInfo = await invoke<UpdateInfo>('check_for_updates');
 			return updateInfo;
 		} catch (error) {
@@ -43,11 +44,11 @@
 	async function installUpdate(): Promise<boolean> {
 		try {
 			updateStatus = 'updating';
-			updateMessage = 'Update wird installiert...';
+			updateMessage = m.update_installing();
 
 			await invoke('install_update');
 
-			updateMessage = 'Update abgeschlossen. Anwendung wird neu gestartet...';
+			updateMessage = m.update_finished();
 			return true;
 		} catch (error) {
 			console.error('Failed to install update:', error);
@@ -101,7 +102,7 @@
 			await loadAppData();
 		} else {
 			loadingError.set(
-				'Maximale Anzahl von Wiederholungsversuchen erreicht. Bitte starten Sie die Anwendung neu.'
+				m.max_retries_reached()
 			);
 		}
 	}
@@ -119,19 +120,19 @@
 			unlistenUpdateStart = await listen('update-check-started', () => {
 				trayUpdateTriggered = true;
 				updateStatus = 'checking';
-				updateMessage = 'Update wird geprüft...';
+				updateMessage = m.update_checking();
 				isLoading.set(true);
 			});
 
 			unlistenUpdateInstalling = await listen('update-installing', (event) => {
 				updateStatus = 'updating';
 				const updateInfo = event.payload as UpdateInfo;
-				updateMessage = `Update ${updateInfo.version} wird installiert...`;
+				updateMessage = updateInfo.version ? m.update_installing_version({ version: updateInfo.version }) : m.update_installing();
 			});
 
 			unlistenUpdateNotAvailable = await listen('update-not-available', () => {
 				updateStatus = 'done';
-				updateMessage = 'Keine Updates verfügbar';
+				updateMessage = m.update_not_available();
 				setTimeout(() => {
 					isLoading.set(false);
 					trayUpdateTriggered = false;
@@ -140,7 +141,7 @@
 
 			unlistenUpdateError = await listen('update-error', (event) => {
 				updateStatus = 'done';
-				loadingError.set(`Update-Fehler: ${event.payload}`);
+				loadingError.set(m.update_error({ error: event.payload as string }));
 				isLoading.set(false);
 				trayUpdateTriggered = false;
 			});
@@ -150,8 +151,8 @@
 				const updateInfo = await checkForUpdates();
 
 				if (updateInfo?.available) {
-					console.log(`Update available: ${updateInfo.version}`);
-					updateMessage = `Update ${updateInfo.version} verfügbar. Installation wird gestartet...`;
+				console.log(`Update available: ${updateInfo.version}`);
+				updateMessage = updateInfo.version ? m.update_available({ version: updateInfo.version }) : m.update_checking();
 
 					await new Promise((resolve) => setTimeout(resolve, 1000));
 
@@ -184,7 +185,7 @@
 <main class="bg-background min-h-screen">
 	{#if $isLoading || updateStatus !== 'done' || trayUpdateTriggered}
 		<Loading
-			message={trayUpdateTriggered ? updateMessage : (updateStatus === 'done' ? 'Lade Erinnerungen und Einstellungen' : updateMessage)}
+			message={trayUpdateTriggered ? updateMessage : (updateStatus === 'done' ? m.loading_reminders() : updateMessage)}
 			error={$loadingError}
 			retryCallback={$loadingError ? retryLoading : undefined}
 			isUpdating={updateStatus === 'updating'}
