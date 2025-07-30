@@ -29,22 +29,18 @@ pub fn quit_app(app: AppHandle) -> Result<(), String> {
 
 #[tauri::command]
 pub fn update_tray_menu(app: AppHandle) -> Result<(), String> {
-    // Remove existing tray icon to prevent duplicates
     let _ = app.remove_tray_by_id("main");
     
-    // Create new tray with updated language
     setup_system_tray(&app).map_err(|e| e.to_string())?;
     Ok(())
 }
 
 #[tauri::command]
 pub async fn check_update_from_tray(app: AppHandle) -> Result<(), String> {
-    // Show window first to display loading
     if let Some(window) = app.get_webview_window("main") {
         let _ = window.show();
         let _ = window.set_focus();
-        
-        // Emit event to frontend to show update loading
+
         let _ = window.emit("update-check-started", ());
     }
     
@@ -144,7 +140,6 @@ pub fn setup_system_tray(app: &AppHandle) -> Result<(), Box<dyn std::error::Erro
 pub fn handle_window_event(window: &tauri::Window, event: &WindowEvent) -> bool {
     match event {
         WindowEvent::CloseRequested { api, .. } => {
-            // Prevent the window from closing and hide it instead
             api.prevent_close();
             let _ = window.hide();
             true

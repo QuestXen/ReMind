@@ -3,11 +3,11 @@
 	import { Card, Content } from '$lib/components/ui/card/index';
 	import { Input } from '$lib/components/ui/input/index';
 	import * as Select from '$lib/components/ui/select/index';
-	import * as DropdownMenu from '$lib/components/ui/dropdown-menu/index';
 	import { Calendar } from '$lib/components/ui/calendar/index';
 	import * as Popover from '$lib/components/ui/popover/index';
 	import { getLocalTimeZone, today, parseDate } from '@internationalized/date';
 	import { invoke } from '@tauri-apps/api/core';
+	import { listen } from '@tauri-apps/api/event';
 	import {
 		Plus,
 		Bell,
@@ -31,7 +31,6 @@
 		settings
 	} from '$lib/stores';
 	import type { Reminder, ReminderInterval, ReminderColor } from '$lib/stores';
-	import { SvelteDate, SvelteMap } from 'svelte/reactivity';
 	import * as m from '../../paraglide/messages.js';
 
 	function getCurrentLocale(): string {
@@ -99,16 +98,7 @@
 		{ value: 'specific', label: m.specific_date() }
 	];
 
-	const timeOptions = (() => {
-		const options = [];
-		for (let hour = 0; hour < 24; hour++) {
-			for (let minute = 0; minute < 60; minute += 15) {
-				const timeStr = `${hour.toString().padStart(2, '0')}:${minute.toString().padStart(2, '0')}`;
-				options.push({ value: timeStr, label: timeStr });
-			}
-		}
-		return options;
-	})();
+
 
 	const intervalLabels = {
 		minutes: m.minutes_lowercase(),
@@ -191,7 +181,9 @@
 	$effect(() => {
 		if (newReminderCalendarValue && newReminder.interval === 'specific') {
 			const dateStr = newReminderCalendarValue.toString();
-			newReminder.specificDate = `${dateStr}T${newReminder.specificTime}:00.000Z`;
+			// Create a local date/time and convert to UTC for storage
+			const localDateTime = new Date(`${dateStr}T${newReminder.specificTime}:00`);
+			newReminder.specificDate = localDateTime.toISOString();
 		}
 	});
 
@@ -199,7 +191,9 @@
 		if (editReminderCalendarValue && editingReminder && editingReminder.interval === 'specific') {
 			const dateStr = editReminderCalendarValue.toString();
 			const timeStr = editingReminder.specificTime || '12:00';
-			editingReminder.specificDate = `${dateStr}T${timeStr}:00.000Z`;
+			// Create a local date/time and convert to UTC for storage
+			const localDateTime = new Date(`${dateStr}T${timeStr}:00`);
+			editingReminder.specificDate = localDateTime.toISOString();
 		}
 	});
 
@@ -208,10 +202,17 @@
 
 		if (reminder.interval === 'specific' && reminder.specificDate) {
 			try {
-				const [datePart, timePart] = reminder.specificDate.split('T');
-				editReminderCalendarValue = parseDate(datePart);
-				if (timePart && editingReminder) {
-					editingReminder.specificTime = timePart.substring(0, 5);
+				// Convert UTC time back to local time for editing
+				const utcDate = new Date(reminder.specificDate);
+				const year = utcDate.getFullYear();
+				const month = String(utcDate.getMonth() + 1).padStart(2, '0');
+				const day = String(utcDate.getDate()).padStart(2, '0');
+				const hours = String(utcDate.getHours()).padStart(2, '0');
+				const minutes = String(utcDate.getMinutes()).padStart(2, '0');
+				
+				editReminderCalendarValue = parseDate(`${year}-${month}-${day}`);
+				if (editingReminder) {
+					editingReminder.specificTime = `${hours}:${minutes}`;
 				}
 			} catch {
 				editReminderCalendarValue = today(getLocalTimeZone());
@@ -365,8 +366,28 @@
 				nextExecution: string | null;
 				isScheduled: boolean;
 			}>;
+			
+			await checkAndUpdateExpiredReminders();
 		} catch (error) {
 			console.error('Failed to get timer status from backend:', error);
+		}
+	}
+
+	async function checkAndUpdateExpiredReminders() {
+		try {
+			const updatedReminders = await invoke('load_reminders');
+			const currentReminders = $reminders;
+			
+			for (const backendReminder of updatedReminders as Reminder[]) {
+				const frontendReminder = currentReminders.find(r => r.id === backendReminder.id);
+				
+				if (frontendReminder && frontendReminder.active && !backendReminder.active) {
+					updateReminderStore(backendReminder);
+					console.log(`Automatically deactivated expired reminder: ${backendReminder.name}`);
+				}
+			}
+		} catch (error) {
+			console.error('Failed to check expired reminders:', error);
 		}
 	}
 
@@ -462,6 +483,7 @@
 
 	onMount(() => {
 		let isInitialLoad = true;
+		let unlisten: (() => void) | null = null;
 
 		if (localStorage.getItem('keepSettingsOpen') === 'true') {
 			showSettings = true;
@@ -476,9 +498,17 @@
 			}
 		});
 
+		(async () => {
+			unlisten = await listen('reminder-deactivated', async (event) => {
+				const reminderId = event.payload as string;
+				console.log(`Received reminder-deactivated event for: ${reminderId}`);
+				await checkAndUpdateExpiredReminders();
+			});
+		})();
+
 		statusUpdateInterval = setInterval(() => {
 			updateBackendTimerStatus();
-		}, 30 * 1000); 
+		}, 5 * 1000); // WIchtigeee
 
 		timeUpdateInterval = setInterval(() => {
 			timeUpdateTrigger++;
@@ -486,6 +516,9 @@
 
 		return () => {
 			unsubscribe();
+			if (unlisten) {
+				unlisten();
+			}
 		};
 	});
 
@@ -664,47 +697,65 @@
 															</Popover.Trigger>
 															<Popover.Content class="w-auto p-0" align="start">
 																<Calendar
-																	type="single"
-																	bind:value={editReminderCalendarValue}
-																	class="rounded-md border-0"
-																	captionLayout="dropdown"
-																	locale={getCurrentLocale()}
-																	minValue={today(getLocalTimeZone())}
-																	onValueChange={() => (editReminderPopoverOpen = false)}
-																/>
+																									type="single"
+																									bind:value={editReminderCalendarValue}
+																									class="rounded-md border-0"
+																									locale={getCurrentLocale()}
+																									minValue={today(getLocalTimeZone())}
+																									onValueChange={() => (editReminderPopoverOpen = false)}
+																								/>
 															</Popover.Content>
 														</Popover.Root>
 													</div>
 													<div>
-														<label
-															for="reminder-specific-time"
-															class="text-subheading text-card-foreground mb-3 block text-sm"
-															>{m.time()}</label
-														>
-														<DropdownMenu.Root>
-															<DropdownMenu.Trigger
-																class="border-border hover:bg-accent bg-input border-border text-foreground focus:border-ring focus:ring-ring/20 hover:border-ring/50 flex h-10 w-full items-center justify-start rounded-xl border px-4 text-left font-normal transition-all duration-300 focus:ring-4"
-															>
-																<Clock class="mr-2 h-4 w-4" />
-																{editingReminder?.specificTime || m.select_time()}
-															</DropdownMenu.Trigger>
-															<DropdownMenu.Content class="max-h-60 w-48 overflow-y-auto">
-																<DropdownMenu.Group>
-																	<DropdownMenu.Label>{m.select_time_label()}</DropdownMenu.Label>
-																	{#each timeOptions as timeOption (timeOption.value)}
-																		<DropdownMenu.Item
-																			onclick={() => {
-																				if (editingReminder)
-																					editingReminder.specificTime = timeOption.value;
-																			}}
-																		>
-																			{timeOption.label}
-																		</DropdownMenu.Item>
-																	{/each}
-																</DropdownMenu.Group>
-															</DropdownMenu.Content>
-														</DropdownMenu.Root>
-													</div>
+																						<label
+																							for="reminder-specific-time"
+																							class="text-subheading text-card-foreground mb-3 block text-sm"
+																							>{m.time()}</label
+																						>
+																						<Popover.Root>
+																							<Popover.Trigger
+																								class="border-border hover:bg-accent bg-input border-border text-foreground focus:border-ring focus:ring-ring/20 hover:border-ring/50 flex h-10 w-full items-center justify-start rounded-xl border px-4 text-left font-normal transition-all duration-300 focus:ring-4"
+																							>
+																								<Clock class="mr-2 h-4 w-4" />
+																								{editingReminder?.specificTime || m.select_time()}
+																							</Popover.Trigger>
+																							<Popover.Content class="w-64 p-4 bg-card border-border rounded-xl shadow-xl">
+																								<div class="grid grid-cols-2 gap-4">
+																									<div>
+																										<p class="text-sm font-medium mb-2 capitalize">{m.hour()}</p>
+																										<div class="max-h-32 overflow-y-auto rounded-md border border-border">
+																											{#each Array.from({length: 24}, (_, i) => i.toString().padStart(2, '0')) as hour}
+																												<button type="button" class="w-full py-1 hover:bg-muted text-foreground" onclick={() => {
+																													if (editingReminder) {
+																														const [_, m] = (editingReminder.specificTime || '00:00').split(':');
+																														editingReminder.specificTime = `${hour}:${m}`;
+																													}
+																												}}>
+																													{hour}
+																												</button>
+																											{/each}
+																										</div>
+																									</div>
+																									<div>
+																										<p class="text-sm font-medium mb-2 capitalize">{m.minute()}</p>
+																										<div class="max-h-32 overflow-y-auto rounded-md border border-border">
+																											{#each Array.from({length: 60}, (_, i) => i.toString().padStart(2, '0')) as minute}
+																												<button type="button" class="w-full py-1 hover:bg-muted text-foreground" onclick={() => {
+																													if (editingReminder) {
+																														const [h, _] = (editingReminder.specificTime || '00:00').split(':');
+																														editingReminder.specificTime = `${h}:${minute}`;
+																													}
+																												}}>
+																													{minute}
+																												</button>
+																											{/each}
+																										</div>
+																									</div>
+																								</div>
+																							</Popover.Content>
+																						</Popover.Root>
+																					</div>
 												</div>
 											{/if}
 										{:else if newReminder.interval !== 'specific'}
@@ -743,44 +794,61 @@
 														</Popover.Trigger>
 														<Popover.Content class="w-auto p-0" align="start">
 															<Calendar
-																type="single"
-																bind:value={newReminderCalendarValue}
-																class="rounded-md border-0"
-																captionLayout="dropdown"
-																locale={getCurrentLocale()}
-																minValue={today(getLocalTimeZone())}
-																onValueChange={() => (newReminderPopoverOpen = false)}
-															/>
+																											type="single"
+																											bind:value={newReminderCalendarValue}
+																											class="rounded-md border-0"
+																											locale={getCurrentLocale()}
+																											minValue={today(getLocalTimeZone())}
+																											onValueChange={() => (newReminderPopoverOpen = false)}
+																										/>
 														</Popover.Content>
 													</Popover.Root>
 												</div>
 												<div>
-													<label
-														for="new-reminder-specific-time"
-														class="text-subheading text-card-foreground mb-3 block text-sm"
-														>{m.time()}</label
-													>
-													<DropdownMenu.Root>
-														<DropdownMenu.Trigger
-															class="border-border hover:bg-accent bg-input border-border text-foreground focus:border-ring focus:ring-ring/20 hover:border-ring/50 flex h-10 w-full items-center justify-start rounded-xl border px-4 text-left font-normal transition-all duration-300 focus:ring-4"
-														>
-															<Clock class="mr-2 h-4 w-4" />
-															{newReminder.specificTime || m.select_time()}
-														</DropdownMenu.Trigger>
-														<DropdownMenu.Content class="max-h-60 w-48 overflow-y-auto">
-															<DropdownMenu.Group>
-																<DropdownMenu.Label>{m.select_time_label()}</DropdownMenu.Label>
-																{#each timeOptions as timeOption (timeOption.value)}
-																	<DropdownMenu.Item
-																		onclick={() => (newReminder.specificTime = timeOption.value)}
-																	>
-																		{timeOption.label}
-																	</DropdownMenu.Item>
-																{/each}
-															</DropdownMenu.Group>
-														</DropdownMenu.Content>
-													</DropdownMenu.Root>
-												</div>
+																							<label
+																								for="new-reminder-specific-time"
+																								class="text-subheading text-card-foreground mb-3 block text-sm"
+																								>{m.time()}</label
+																							>
+																							<Popover.Root>
+																								<Popover.Trigger
+																									class="border-border hover:bg-accent bg-input border-border text-foreground focus:border-ring focus:ring-ring/20 hover:border-ring/50 flex h-10 w-full items-center justify-start rounded-xl border px-4 text-left font-normal transition-all duration-300 focus:ring-4"
+																								>
+																									<Clock class="mr-2 h-4 w-4" />
+																									{newReminder.specificTime || m.select_time()}
+																								</Popover.Trigger>
+																								<Popover.Content class="w-64 p-4 bg-card border-border rounded-xl shadow-xl">
+																									<div class="grid grid-cols-2 gap-4">
+																										<div>
+																											<p class="text-sm font-medium mb-2 capitalize">{m.hour()}</p>
+																											<div class="max-h-32 overflow-y-auto rounded-md border border-border">
+																												{#each Array.from({length: 24}, (_, i) => i.toString().padStart(2, '0')) as hour}
+																													<button type="button" class="w-full py-1 hover:bg-muted text-foreground" onclick={() => {
+																														const [_, m] = (newReminder.specificTime || '00:00').split(':');
+																														newReminder.specificTime = `${hour}:${m}`;
+																													}}>
+																														{hour}
+																													</button>
+																												{/each}
+																											</div>
+																										</div>
+																										<div>
+																											<p class="text-sm font-medium mb-2 capitalize">{m.minute()}</p>
+																											<div class="max-h-32 overflow-y-auto rounded-md border border-border">
+																												{#each Array.from({length: 60}, (_, i) => i.toString().padStart(2, '0')) as minute}
+																													<button type="button" class="w-full py-1 hover:bg-muted text-foreground" onclick={() => {
+																														const [h, _] = (newReminder.specificTime || '00:00').split(':');
+																														newReminder.specificTime = `${h}:${minute}`;
+																													}}>
+																														{minute}
+																													</button>
+																												{/each}
+																											</div>
+																										</div>
+																									</div>
+																								</Popover.Content>
+																							</Popover.Root>
+																						</div>
 											</div>
 										{/if}
 									</div>
@@ -1081,7 +1149,7 @@
 													<Button
 														onclick={() => startEditReminder(reminder)}
 														variant="outline"
-														class="border-border text-muted-foreground hover:bg-accent hover:border-primary rounded-xl border-2 p-3 transition-all duration-300"
+														class="border-border text-muted-foreground hover:bg-green-500/10 hover:border-green-500 hover:text-green-600 rounded-xl border-2 p-3 transition-all duration-300"
 													>
 														<Edit class="h-4 w-4" />
 													</Button>

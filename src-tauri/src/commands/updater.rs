@@ -55,7 +55,6 @@ pub async fn install_update(app: AppHandle) -> Result<(), String> {
                     if let Some(update) = update {
                         log::info!("Installing update version: {}", update.version);
                         
-                        // Download and install update
                         match update.download_and_install(|chunk_length, content_length| {
                             let progress = chunk_length as f64 / content_length.unwrap_or(chunk_length as u64) as f64 * 100.0;
                             log::info!("Download progress: {:.1}%", progress);
@@ -64,7 +63,6 @@ pub async fn install_update(app: AppHandle) -> Result<(), String> {
                         }).await {
                             Ok(_) => {
                                 log::info!("Update installed successfully, restarting...");
-                                // The app will restart automatically after installation
                                 Ok(())
                             }
                             Err(e) => {

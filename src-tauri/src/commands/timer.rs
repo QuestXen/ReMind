@@ -3,7 +3,7 @@ use std::sync::Arc;
 use chrono::{DateTime, Utc, Duration};
 use tokio::sync::{Mutex, oneshot};
 use tokio::time::{sleep, Duration as TokioDuration};
-use tauri::{AppHandle, Manager};
+use tauri::{AppHandle, Manager, Emitter};
 use crate::commands::app_data::{Reminder, load_app_data, save_app_data, update_reminder_last_notified};
 use crate::commands::notifications::send_notification_with_settings;
 use log::{error, info};
@@ -42,7 +42,6 @@ impl TimerManager {
             }
         };
 
-        // Update the reminder's next_execution field
         reminder.next_execution = Some(next_execution.to_rfc3339());
         Self::save_reminder(&self.app, &reminder);
 
@@ -86,17 +85,14 @@ impl TimerManager {
                 _ = sleep(TokioDuration::from(duration)) => {
                     TimerManager::execute_reminder(&app, &reminder).await;
                     if reminder.interval != "specific" {
-                        // For recurring reminders, calculate the next execution time and save it
                         let mut updated_reminder = reminder.clone();
                         if let Some(next_exec) = TimerManager::calculate_next_execution(&reminder, Utc::now()) {
                             updated_reminder.next_execution = Some(next_exec.to_rfc3339());
                             TimerManager::save_reminder(&app, &updated_reminder);
                             
-                            // Note: Next occurrence will be scheduled when timer status is updated
                             println!("Next execution scheduled for: {}", updated_reminder.next_execution.as_ref().unwrap_or(&"Unknown".to_string()));
                         }
                     } else {
-                        // Deactivate one-time reminders
                         let mut updated_reminder = reminder.clone();
                         updated_reminder.active = false;
                         TimerManager::save_reminder(&app, &updated_reminder);
@@ -128,7 +124,7 @@ impl TimerManager {
             "weeks" => Some(now + Duration::weeks(reminder.interval_value as i64)),
             "months" => {
                 let mut next = now;
-                next = next + Duration::days(28 * reminder.interval_value as i64);  // Approximativ, passe bei Bedarf an
+                next = next + Duration::days(28 * reminder.interval_value as i64); 
                 Some(next)
             }
             "specific" => {
@@ -147,6 +143,21 @@ impl TimerManager {
         let timestamp = Utc::now().to_rfc3339();
         if let Err(e) = update_reminder_last_notified(app.clone(), reminder.id.clone(), timestamp) {
             error!("Failed to update last_notified for {}: {}", reminder.name, e);
+        }
+        
+        if reminder.interval == "specific" {
+            let mut app_data = load_app_data(app).unwrap_or_default();
+            if let Some(existing) = app_data.reminders.iter_mut().find(|r| r.id == reminder.id) {
+                existing.active = false;
+                info!("Deactivated specific reminder: {}", reminder.name);
+                
+                if let Err(e) = app.emit("reminder-deactivated", &existing.id) {
+                    error!("Failed to emit reminder-deactivated event: {}", e);
+                }
+            }
+            if let Err(e) = save_app_data(app, &app_data) {
+                error!("Failed to deactivate reminder {}: {}", reminder.name, e);
+            }
         }
     }
 
