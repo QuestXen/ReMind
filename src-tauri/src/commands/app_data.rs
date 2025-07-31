@@ -19,7 +19,7 @@ pub struct Reminder {
     pub id: String,
     pub name: String,
     pub interval: String,
-    pub interval_value: u32,
+    pub interval_value: f64,
     pub specific_date: Option<String>,
     pub specific_time: Option<String>,
     pub color: String,
@@ -36,7 +36,7 @@ struct LegacyReminder {
     pub id: String,
     pub name: String,
     pub interval: String,
-    pub interval_value: u32,
+    pub interval_value: f64,
     pub specific_date: Option<String>,
     pub specific_time: Option<String>,
     pub color: String,
@@ -376,6 +376,25 @@ pub fn update_reminder(app: AppHandle, mut reminder: Reminder) -> Result<(), Err
                 });
             }
         }
+    }
+
+    Ok(())
+}
+
+#[tauri::command]
+pub fn update_reminder_preserve_timer(app: AppHandle, reminder: Reminder) -> Result<(), Error> {
+    let mut app_data = load_app_data(&app).unwrap_or_default();
+    if let Some(existing_reminder) = app_data.reminders.iter_mut().find(|r| r.id == reminder.id) {
+        // Preserve timer-relevant fields
+        let preserved_next_execution = existing_reminder.next_execution.clone();
+        
+        // Update all fields
+        *existing_reminder = reminder.clone();
+        
+        // Restore preserved timer state
+        existing_reminder.next_execution = preserved_next_execution;
+        
+        save_app_data(&app, &app_data)?;
     }
 
     Ok(())

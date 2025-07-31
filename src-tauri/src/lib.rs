@@ -1,7 +1,7 @@
 mod commands;
 use commands::app_data::{
     add_reminder, delete_reminder, load_reminders, save_reminders, update_reminder,
-    update_reminder_last_notified, load_settings, save_settings, update_setting, get_setting,
+    update_reminder_preserve_timer, update_reminder_last_notified, load_settings, save_settings, update_setting, get_setting,
 };
 use commands::default::{read, write};
 use commands::notifications::{
@@ -123,6 +123,7 @@ pub fn run() {
             delete_reminder,
             add_reminder,
             update_reminder,
+            update_reminder_preserve_timer,
             update_reminder_last_notified,
             load_settings,
             save_settings,

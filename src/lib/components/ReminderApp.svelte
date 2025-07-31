@@ -197,8 +197,18 @@
 		}
 	});
 
+	let originalTimerSettings = $state<{interval: string, intervalValue: number, specificDate?: string, specificTime?: string} | null>(null);
+
 	function startEditReminder(reminder: Reminder) {
 		editingReminder = { ...reminder };
+		
+		// Store original timer-relevant settings
+		originalTimerSettings = {
+			interval: reminder.interval,
+			intervalValue: reminder.intervalValue,
+			specificDate: reminder.specificDate,
+			specificTime: reminder.specificTime
+		};
 
 		if (reminder.interval === 'specific' && reminder.specificDate) {
 			try {
@@ -246,8 +256,23 @@
 
 	async function updateReminder() {
 		if (!editingReminder || !editingReminder.name.trim()) return;
+		
+		// Check if timer-relevant settings changed
+		const timerSettingsChanged = originalTimerSettings && (
+			originalTimerSettings.interval !== editingReminder.interval ||
+			originalTimerSettings.intervalValue !== editingReminder.intervalValue ||
+			originalTimerSettings.specificDate !== editingReminder.specificDate ||
+			originalTimerSettings.specificTime !== editingReminder.specificTime
+		);
+		
 		try {
-			await invoke('update_reminder', { reminder: editingReminder });
+			if (timerSettingsChanged) {
+				// Use full update that restarts timer
+				await invoke('update_reminder', { reminder: editingReminder });
+			} else {
+				// Use smart update that preserves timer
+				await invoke('update_reminder_preserve_timer', { reminder: editingReminder });
+			}
 
 			updateReminderStore(editingReminder);
 			await updateBackendTimerStatus();
@@ -256,6 +281,7 @@
 			const updatedReminderName = editingReminder.name;
 			showEditForm = false;
 			editingReminder = null;
+			originalTimerSettings = null;
 			setTimeout(() => {
 				const updatedReminderElement = document.getElementById(`reminder-${updatedReminderId}`);
 				if (updatedReminderElement) {
@@ -380,13 +406,56 @@
 			for (const backendReminder of updatedReminders as Reminder[]) {
 				const frontendReminder = currentReminders.find((r) => r.id === backendReminder.id);
 
-				if (frontendReminder && frontendReminder.active && !backendReminder.active) {
-					updateReminderStore(backendReminder);
-					console.log(`Automatically deactivated expired reminder: ${backendReminder.name}`);
+				if (frontendReminder) {
+					// Update if there are any changes (active status, lastNotified, etc.)
+					if (frontendReminder.active !== backendReminder.active || 
+						frontendReminder.lastNotified !== backendReminder.lastNotified ||
+						frontendReminder.nextExecution !== backendReminder.nextExecution) {
+						updateReminderStore(backendReminder);
+						if (frontendReminder.active && !backendReminder.active) {
+							console.log(`Automatically deactivated expired reminder: ${backendReminder.name}`);
+						} else {
+							console.log(`Updated reminder from backend: ${backendReminder.name}`);
+						}
+					}
 				}
 			}
 		} catch (error) {
 			console.error('Failed to check expired reminders:', error);
+		}
+	}
+
+	async function updateReminderFromTimerStatus(reminderId: string) {
+		try {
+			// Get the updated reminder data from backend
+			const updatedReminders = await invoke('load_reminders');
+			const backendReminder = (updatedReminders as Reminder[]).find((r) => r.id === reminderId);
+
+			// Find the specific reminder in frontend
+			const currentReminders = $reminders;
+			const reminderToUpdate = currentReminders.find((r) => r.id === reminderId);
+
+			if (reminderToUpdate && backendReminder) {
+				// Update the reminder with the latest data from backend
+				const updatedReminder = {
+					...reminderToUpdate,
+					nextExecution: backendReminder.nextExecution,
+					lastNotified: backendReminder.lastNotified
+				};
+				updateReminderStore(updatedReminder);
+				console.log(`Updated reminder from backend: ${reminderToUpdate.name}`);
+				
+				// Also update the timer status to keep it in sync
+				const status = await invoke('get_timer_status');
+				backendTimerStatus = status as Array<{
+					reminderId: string;
+					reminderName: string;
+					nextExecution: string | null;
+					isScheduled: boolean;
+				}>;
+			}
+		} catch (error) {
+			console.error('Failed to update reminder from timer status:', error);
 		}
 	}
 
@@ -446,6 +515,15 @@
 			return `${dateStr} ${timeStr}`;
 		}
 		return `${m.every()} ${reminder.intervalValue} ${intervalLabels[reminder.interval]}`;
+	}
+
+	function hasNextReminder(reminder: Reminder): boolean {
+		if (!reminder.active) {
+			return false;
+		}
+
+		const timerStatus = getTimerStatusForReminder(reminder.id);
+		return !!(timerStatus && timerStatus.nextExecution);
 	}
 
 	function getTimeUntilNextReminder(reminder: Reminder): string {
@@ -512,16 +590,38 @@
 		});
 
 		(async () => {
-			unlisten = await listen('reminder-deactivated', async (event) => {
+			const unlistenDeactivated = await listen('reminder-deactivated', async (event) => {
 				const reminderId = event.payload as string;
 				console.log(`Received reminder-deactivated event for: ${reminderId}`);
 				await checkAndUpdateExpiredReminders();
 			});
+			
+			const unlistenExecuted = await listen('reminder-executed', async (event) => {
+				const reminderId = event.payload as string;
+				console.log(`Received reminder-executed event for: ${reminderId}`);
+				await updateReminderFromTimerStatus(reminderId);
+			});
+			
+			unlisten = () => {
+				unlistenDeactivated();
+				unlistenExecuted();
+			};
 		})();
 
-		statusUpdateInterval = setInterval(() => {
-			updateBackendTimerStatus();
-		}, 5 * 1000); // WIchtigeee
+		statusUpdateInterval = setInterval(async () => {
+			// Only update timer status, don't reload all reminders to avoid flickering
+			try {
+				const status = await invoke('get_timer_status');
+				backendTimerStatus = status as Array<{
+					reminderId: string;
+					reminderName: string;
+					nextExecution: string | null;
+					isScheduled: boolean;
+				}>;
+			} catch (error) {
+				console.error('Failed to get timer status:', error);
+			}
+		}, 5 * 1000);
 
 		timeUpdateInterval = setInterval(() => {
 			timeUpdateTrigger++;
@@ -683,9 +783,10 @@
 													<Input
 														id="reminder-interval-value"
 														type="number"
+														step="0.1"
 														autocomplete="off"
 														bind:value={editingReminder.intervalValue}
-														min="1"
+														min="0.1"
 														class="border-border focus:border-ring focus:ring-ring bg-input focus:bg-background text-body text-foreground h-10 w-full rounded-xl px-4 transition-all duration-300"
 													/>
 												</div>
@@ -803,8 +904,9 @@
 												<Input
 													id="new-reminder-interval-value"
 													type="number"
+													step="0.1"
 													bind:value={newReminder.intervalValue}
-													min="1"
+													min="0.1"
 													class="border-border focus:border-ring focus:ring-ring bg-input focus:bg-background text-body text-foreground h-10 w-full rounded-xl px-4 transition-all duration-300"
 												/>
 											</div>
@@ -1149,29 +1251,23 @@
 														</div>
 
 														<div
-															class="overflow-hidden transition-all duration-800"
-															style="max-height: {getTimeUntilNextReminder(reminder) &&
-															reminder.active
-																? '80px'
-																: '0px'}; padding-top: {getTimeUntilNextReminder(reminder) &&
-															reminder.active
-																? '8px'
-																: '0px'}; margin-top: {getTimeUntilNextReminder(reminder) &&
-															reminder.active
-																? '8px'
-																: '0px'}; transition-timing-function: cubic-bezier(0.25, 0.46, 0.45, 0.94);"
-														>
-															<div
-																class="text-muted-foreground flex items-start gap-2 pt-2 text-sm transition-opacity duration-800"
-																style="opacity: {getTimeUntilNextReminder(reminder) &&
-																reminder.active
-																	? '1'
-																	: '0'}; transition-timing-function: cubic-bezier(0.25, 0.46, 0.45, 0.94); transition-delay: {getTimeUntilNextReminder(
-																	reminder
-																) && reminder.active
-																	? '0ms'
-																	: '200ms'};"
-															>
+											class="overflow-hidden transition-all duration-800"
+											style="max-height: {hasNextReminder(reminder)
+												? '80px'
+												: '0px'}; padding-top: {hasNextReminder(reminder)
+												? '8px'
+												: '0px'}; margin-top: {hasNextReminder(reminder)
+												? '8px'
+												: '0px'}; transition-timing-function: cubic-bezier(0.25, 0.46, 0.45, 0.94);"
+										>
+											<div
+												class="text-muted-foreground flex items-start gap-2 pt-2 text-sm transition-opacity duration-800"
+												style="opacity: {hasNextReminder(reminder)
+													? '1'
+													: '0'}; transition-timing-function: cubic-bezier(0.25, 0.46, 0.45, 0.94); transition-delay: {hasNextReminder(reminder)
+													? '0ms'
+													: '200ms'};"
+											>
 																<div
 																	class="mt-2 h-2 w-2 flex-shrink-0 animate-pulse rounded-full bg-emerald-500"
 																></div>

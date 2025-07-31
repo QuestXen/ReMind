@@ -3,7 +3,7 @@ use std::sync::Arc;
 use chrono::{DateTime, Utc, Duration};
 use tokio::sync::{Mutex, oneshot};
 use tokio::time::{sleep, Duration as TokioDuration};
-use tauri::{AppHandle, Manager, Emitter};
+use tauri::{AppHandle, Manager, Emitter, Listener};
 use crate::commands::app_data::{Reminder, load_app_data, save_app_data, update_reminder_last_notified};
 use crate::commands::notifications::send_notification_with_settings;
 use log::{error, info};
@@ -29,6 +29,21 @@ impl TimerManager {
                 self.schedule_reminder(reminder).await;
             }
         }
+        
+        // Listen for reschedule events
+        let timer_manager = self.clone();
+        self.app.listen("reschedule-reminder", move |event| {
+            let timer_manager = timer_manager.clone();
+            let reminder_id = event.payload().to_string();
+            let reminder_id = reminder_id.trim_matches('"').to_string();
+            tauri::async_runtime::spawn(async move {
+                let app_data = load_app_data(&timer_manager.app).unwrap_or_default();
+                if let Some(reminder) = app_data.reminders.iter().find(|r| r.id == reminder_id && r.active) {
+                    timer_manager.schedule_reminder(reminder.clone()).await;
+                }
+            });
+        });
+        
         info!("TimerManager started with all active reminders scheduled.");
     }
 
@@ -85,12 +100,18 @@ impl TimerManager {
                 _ = sleep(TokioDuration::from(duration)) => {
                     TimerManager::execute_reminder(&app, &reminder).await;
                     if reminder.interval != "specific" {
+                        // For recurring reminders, schedule the next execution
                         let mut updated_reminder = reminder.clone();
                         if let Some(next_exec) = TimerManager::calculate_next_execution(&reminder, Utc::now()) {
                             updated_reminder.next_execution = Some(next_exec.to_rfc3339());
                             TimerManager::save_reminder(&app, &updated_reminder);
                             
-                            println!("Next execution scheduled for: {}", updated_reminder.next_execution.as_ref().unwrap_or(&"Unknown".to_string()));
+                            info!("Next execution scheduled for: {}", updated_reminder.next_execution.as_ref().unwrap_or(&"Unknown".to_string()));
+                            
+                            // Emit event to reschedule the reminder
+                            if let Err(e) = app.emit("reschedule-reminder", &updated_reminder.id) {
+                                error!("Failed to emit reschedule-reminder event: {}", e);
+                            }
                         }
                     } else {
                         let mut updated_reminder = reminder.clone();
@@ -118,14 +139,25 @@ impl TimerManager {
 
     pub fn calculate_next_execution(reminder: &Reminder, now: DateTime<Utc>) -> Option<DateTime<Utc>> {
         match reminder.interval.as_str() {
-            "minutes" => Some(now + Duration::minutes(reminder.interval_value as i64)),
-            "hours" => Some(now + Duration::hours(reminder.interval_value as i64)),
-            "days" => Some(now + Duration::days(reminder.interval_value as i64)),
-            "weeks" => Some(now + Duration::weeks(reminder.interval_value as i64)),
+            "minutes" => {
+                let total_seconds = (reminder.interval_value * 60.0) as i64;
+                Some(now + Duration::seconds(total_seconds))
+            },
+            "hours" => {
+                let total_seconds = (reminder.interval_value * 3600.0) as i64;
+                Some(now + Duration::seconds(total_seconds))
+            },
+            "days" => {
+                let total_seconds = (reminder.interval_value * 86400.0) as i64;
+                Some(now + Duration::seconds(total_seconds))
+            },
+            "weeks" => {
+                let total_seconds = (reminder.interval_value * 604800.0) as i64;
+                Some(now + Duration::seconds(total_seconds))
+            },
             "months" => {
-                let mut next = now;
-                next = next + Duration::days(28 * reminder.interval_value as i64); 
-                Some(next)
+                let total_days = (reminder.interval_value * 28.0) as i64;
+                Some(now + Duration::days(total_days))
             }
             "specific" => {
                 reminder.specific_date.as_ref().and_then(|d| {
@@ -157,6 +189,11 @@ impl TimerManager {
             }
             if let Err(e) = save_app_data(app, &app_data) {
                 error!("Failed to deactivate reminder {}: {}", reminder.name, e);
+            }
+         } else {
+            // For recurring reminders, emit an event to notify frontend of execution
+            if let Err(e) = app.emit("reminder-executed", &reminder.id) {
+                error!("Failed to emit reminder-executed event: {}", e);
             }
         }
     }

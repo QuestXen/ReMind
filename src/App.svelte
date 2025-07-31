@@ -14,6 +14,18 @@
 	let updateStatus = $state('checking'); // 'checking', 'updating', 'done'
 	let updateMessage = $state(m.update_checking());
 	let trayUpdateTriggered = $state(false);
+	let isAutostart = $state(false);
+	let skipUpdateCheck = $state(false);
+	let isLanguageChanging = $state(false);
+
+	function detectAutostart(): boolean {
+		// If keepSettingsOpen is set, it's a language change reload
+		if (localStorage.getItem('keepSettingsOpen') === 'true') {
+			return false;
+		}
+		// Check if app was opened without user interaction (autostart)
+		return document.referrer === '' && !window.opener && !document.hasFocus();
+	}
 
 	interface UpdateInfo {
 		available: boolean;
@@ -61,6 +73,11 @@
 			isLoading.set(true);
 			loadingError.set(null);
 
+			// Add delay only if autostart
+			if (isAutostart) {
+				await new Promise((resolve) => setTimeout(resolve, 500));
+			}
+
 			const [loadedSettings, loadedReminders] = await Promise.all([
 				invoke<LoadedSettings>('load_settings'),
 				invoke<Reminder[]>('load_reminders')
@@ -89,6 +106,13 @@
 			});
 		} catch (error) {
 			console.error('Failed to load app data:', error);
+			
+			// Set error message for retry
+			if (retryCount < MAX_RETRIES) {
+				loadingError.set(m.connection_error_retry());
+			} else {
+				loadingError.set(m.connection_error_final());
+			}
 
 			isLoading.set(false);
 			updateStatus = 'done';
@@ -106,6 +130,20 @@
 	}
 
 	onMount(() => {
+		// Detect if app was started via autostart
+		isAutostart = detectAutostart();
+		
+		// Check if this is a reload after language change
+		if (localStorage.getItem('keepSettingsOpen') === 'true') {
+			skipUpdateCheck = true;
+			isLanguageChanging = true;
+			localStorage.removeItem('keepSettingsOpen');
+			// Hide language changing state after UI is ready
+			setTimeout(() => {
+				isLanguageChanging = false;
+			}, 300);
+		}
+		
 		let unlistenUpdateStart: (() => void) | undefined;
 		let unlistenUpdateInstalling: (() => void) | undefined;
 		let unlistenUpdateNotAvailable: (() => void) | undefined;
@@ -144,6 +182,18 @@
 			});
 
 			if (!trayUpdateTriggered) {
+				// Skip update check if requested (e.g., language change)
+				if (skipUpdateCheck) {
+					updateStatus = 'done';
+					loadAppData();
+					return;
+				}
+
+				// Add delay only if autostart
+				if (isAutostart) {
+					await new Promise((resolve) => setTimeout(resolve, 1500));
+				}
+				
 				const updateInfo = await checkForUpdates();
 
 				if (updateInfo?.available) {
@@ -179,7 +229,9 @@
 </script>
 
 <main class="bg-background min-h-screen">
-	{#if $isLoading || updateStatus !== 'done' || trayUpdateTriggered}
+	{#if isLanguageChanging}
+		<!-- Show only background during language change -->
+	{:else if $isLoading || updateStatus !== 'done' || trayUpdateTriggered}
 		<Loading
 			message={trayUpdateTriggered
 				? updateMessage

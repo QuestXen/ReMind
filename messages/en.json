@@ -93,5 +93,7 @@
 	"hours_lowercase": "hours",
 	"days_lowercase": "days",
 	"weeks_lowercase": "weeks",
-	"months_lowercase": "months"
+	"months_lowercase": "months",
+	"connection_error_retry": "Connection error. Retrying...",
+	"connection_error_final": "Connection failed. Please restart the application."
 }

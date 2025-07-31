@@ -93,5 +93,7 @@
 	"hours_lowercase": "Stunden",
 	"days_lowercase": "Tage",
 	"weeks_lowercase": "Wochen",
-	"months_lowercase": "Monate"
+	"months_lowercase": "Monate",
+	"connection_error_retry": "Verbindungsfehler. Wiederholung...",
+	"connection_error_final": "Verbindung fehlgeschlagen. Bitte starten Sie die Anwendung neu."
 }

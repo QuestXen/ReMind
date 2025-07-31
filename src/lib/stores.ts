@@ -16,6 +16,7 @@ export interface Reminder {
 	createdAt: string;
 	lastNotified?: string;
 	active: boolean;
+	nextExecution?: string | null;
 }
 
 export interface AppSettings {
