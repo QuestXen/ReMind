@@ -30,7 +30,12 @@
 		deleteReminderFromStore,
 		settings
 	} from '$lib/stores';
-	import type { Reminder, ReminderInterval, ReminderColor } from '$lib/stores';
+	import type { Reminder, ReminderInterval, ReminderColor, TimerStatus } from '$lib/stores';
+	import {
+		sanitizeReminderList,
+		sanitizeTimerStatusList,
+		sanitizeIntervalValue
+	} from '$lib/utils/validation';
 	import * as m from '../../paraglide/messages.js';
 
 	function getCurrentLocale(): string {
@@ -55,17 +60,10 @@
 	let customColor = $state('#7f5af0');
 	let editCustomColor = $state('#7f5af0');
 
-	let backendTimerStatus = $state<
-		Array<{
-			reminderId: string;
-			reminderName: string;
-			nextExecution: string | null;
-			isScheduled: boolean;
-		}>
-	>([]);
+	let backendTimerStatus = $state<TimerStatus[]>([]);
 
-	let statusUpdateInterval: NodeJS.Timeout | null = null;
-	let timeUpdateInterval: NodeJS.Timeout | null = null;
+	let statusUpdateInterval: ReturnType<typeof setInterval> | null = null;
+	let timeUpdateInterval: ReturnType<typeof setInterval> | null = null;
 	let timeUpdateTrigger = $state(0);
 
 	const colorClasses = {
@@ -96,7 +94,7 @@
 		{ value: 'hours', label: m.hours() },
 		{ value: 'days', label: m.days() },
 		{ value: 'weeks', label: m.weeks() },
-		{ value: 'months', label: m.days() },
+		{ value: 'months', label: m.months() },
 		{ value: 'specific', label: m.specific_date() }
 	];
 
@@ -128,13 +126,17 @@
 	);
 
 	async function createReminder() {
-		if (!newReminder.name.trim()) return;
+		const trimmedName = newReminder.name.trim();
+		if (!trimmedName) return;
+
+		const sanitizedIntervalValue = sanitizeIntervalValue(newReminder.intervalValue);
+		newReminder.intervalValue = sanitizedIntervalValue;
 
 		const reminder: Reminder = {
 			id: crypto.randomUUID(),
-			name: newReminder.name,
+			name: trimmedName,
 			interval: newReminder.interval,
-			intervalValue: newReminder.intervalValue,
+			intervalValue: sanitizedIntervalValue,
 			specificDate: newReminder.interval === 'specific' ? newReminder.specificDate : undefined,
 			specificTime: newReminder.interval === 'specific' ? newReminder.specificTime : undefined,
 			color: newReminder.color,
@@ -197,18 +199,34 @@
 		}
 	});
 
-	let originalTimerSettings = $state<{interval: string, intervalValue: number, specificDate?: string, specificTime?: string} | null>(null);
+	let originalTimerSettings = $state<{
+		interval: ReminderInterval;
+		intervalValue: number;
+		specificDate?: string;
+		specificTime?: string;
+	} | null>(null);
 
 	function startEditReminder(reminder: Reminder) {
-		editingReminder = { ...reminder };
-		
+		const sanitizedIntervalValue = sanitizeIntervalValue(reminder.intervalValue);
+
+		editingReminder = {
+			...reminder,
+			intervalValue: sanitizedIntervalValue
+		};
+
 		// Store original timer-relevant settings
 		originalTimerSettings = {
 			interval: reminder.interval,
-			intervalValue: reminder.intervalValue,
+			intervalValue: sanitizedIntervalValue,
 			specificDate: reminder.specificDate,
 			specificTime: reminder.specificTime
 		};
+
+		if (reminder.color.startsWith('#')) {
+			editCustomColor = reminder.color;
+		} else {
+			editCustomColor = '#7f5af0';
+		}
 
 		if (reminder.interval === 'specific' && reminder.specificDate) {
 			try {
@@ -255,30 +273,38 @@
 	}
 
 	async function updateReminder() {
-		if (!editingReminder || !editingReminder.name.trim()) return;
-		
-		// Check if timer-relevant settings changed
-		const timerSettingsChanged = originalTimerSettings && (
-			originalTimerSettings.interval !== editingReminder.interval ||
-			originalTimerSettings.intervalValue !== editingReminder.intervalValue ||
-			originalTimerSettings.specificDate !== editingReminder.specificDate ||
-			originalTimerSettings.specificTime !== editingReminder.specificTime
-		);
-		
+		if (!editingReminder) return;
+
+		const trimmedName = editingReminder.name.trim();
+		if (!trimmedName) return;
+
+		const sanitizedReminder: Reminder = {
+			...editingReminder,
+			name: trimmedName,
+			intervalValue: sanitizeIntervalValue(editingReminder.intervalValue)
+		};
+
+		const timerSettingsChanged =
+			originalTimerSettings &&
+			(originalTimerSettings.interval !== sanitizedReminder.interval ||
+				originalTimerSettings.intervalValue !== sanitizedReminder.intervalValue ||
+				originalTimerSettings.specificDate !== sanitizedReminder.specificDate ||
+				originalTimerSettings.specificTime !== sanitizedReminder.specificTime);
+
 		try {
 			if (timerSettingsChanged) {
 				// Use full update that restarts timer
-				await invoke('update_reminder', { reminder: editingReminder });
+				await invoke('update_reminder', { reminder: sanitizedReminder });
 			} else {
 				// Use smart update that preserves timer
-				await invoke('update_reminder_preserve_timer', { reminder: editingReminder });
+				await invoke('update_reminder_preserve_timer', { reminder: sanitizedReminder });
 			}
 
-			updateReminderStore(editingReminder);
+			updateReminderStore(sanitizedReminder);
 			await updateBackendTimerStatus();
 
-			const updatedReminderId = editingReminder.id;
-			const updatedReminderName = editingReminder.name;
+			const updatedReminderId = sanitizedReminder.id;
+			const updatedReminderName = sanitizedReminder.name;
 			showEditForm = false;
 			editingReminder = null;
 			originalTimerSettings = null;
@@ -308,6 +334,7 @@
 		editingReminder = null;
 		showEditColorPicker = false;
 		editCustomColor = '#3b82f6';
+		originalTimerSettings = null;
 	}
 
 	function openSettings() {
@@ -385,12 +412,7 @@
 	async function updateBackendTimerStatus() {
 		try {
 			const status = await invoke('get_timer_status');
-			backendTimerStatus = status as Array<{
-				reminderId: string;
-				reminderName: string;
-				nextExecution: string | null;
-				isScheduled: boolean;
-			}>;
+			backendTimerStatus = sanitizeTimerStatusList(status);
 
 			await checkAndUpdateExpiredReminders();
 		} catch (error) {
@@ -400,17 +422,19 @@
 
 	async function checkAndUpdateExpiredReminders() {
 		try {
-			const updatedReminders = await invoke('load_reminders');
+			const updatedReminders = sanitizeReminderList(await invoke('load_reminders'));
 			const currentReminders = $reminders;
 
-			for (const backendReminder of updatedReminders as Reminder[]) {
+			for (const backendReminder of updatedReminders) {
 				const frontendReminder = currentReminders.find((r) => r.id === backendReminder.id);
 
 				if (frontendReminder) {
 					// Update if there are any changes (active status, lastNotified, etc.)
-					if (frontendReminder.active !== backendReminder.active || 
+					if (
+						frontendReminder.active !== backendReminder.active ||
 						frontendReminder.lastNotified !== backendReminder.lastNotified ||
-						frontendReminder.nextExecution !== backendReminder.nextExecution) {
+						frontendReminder.nextExecution !== backendReminder.nextExecution
+					) {
 						updateReminderStore(backendReminder);
 						if (frontendReminder.active && !backendReminder.active) {
 							console.log(`Automatically deactivated expired reminder: ${backendReminder.name}`);
@@ -428,8 +452,8 @@
 	async function updateReminderFromTimerStatus(reminderId: string) {
 		try {
 			// Get the updated reminder data from backend
-			const updatedReminders = await invoke('load_reminders');
-			const backendReminder = (updatedReminders as Reminder[]).find((r) => r.id === reminderId);
+			const updatedReminders = sanitizeReminderList(await invoke('load_reminders'));
+			const backendReminder = updatedReminders.find((r) => r.id === reminderId);
 
 			// Find the specific reminder in frontend
 			const currentReminders = $reminders;
@@ -444,15 +468,10 @@
 				};
 				updateReminderStore(updatedReminder);
 				console.log(`Updated reminder from backend: ${reminderToUpdate.name}`);
-				
+
 				// Also update the timer status to keep it in sync
 				const status = await invoke('get_timer_status');
-				backendTimerStatus = status as Array<{
-					reminderId: string;
-					reminderName: string;
-					nextExecution: string | null;
-					isScheduled: boolean;
-				}>;
+				backendTimerStatus = sanitizeTimerStatusList(status);
 			}
 		} catch (error) {
 			console.error('Failed to update reminder from timer status:', error);
@@ -480,7 +499,9 @@
 				};
 			})
 		};
-		console.table(status.timers);
+		if (import.meta.env.DEV) {
+			console.table(status.timers);
+		}
 		return status;
 	}
 
@@ -595,13 +616,13 @@
 				console.log(`Received reminder-deactivated event for: ${reminderId}`);
 				await checkAndUpdateExpiredReminders();
 			});
-			
+
 			const unlistenExecuted = await listen('reminder-executed', async (event) => {
 				const reminderId = event.payload as string;
 				console.log(`Received reminder-executed event for: ${reminderId}`);
 				await updateReminderFromTimerStatus(reminderId);
 			});
-			
+
 			unlisten = () => {
 				unlistenDeactivated();
 				unlistenExecuted();
@@ -612,12 +633,7 @@
 			// Only update timer status, don't reload all reminders to avoid flickering
 			try {
 				const status = await invoke('get_timer_status');
-				backendTimerStatus = status as Array<{
-					reminderId: string;
-					reminderName: string;
-					nextExecution: string | null;
-					isScheduled: boolean;
-				}>;
+				backendTimerStatus = sanitizeTimerStatusList(status);
 			} catch (error) {
 				console.error('Failed to get timer status:', error);
 			}
@@ -632,15 +648,25 @@
 			if (unlisten) {
 				unlisten();
 			}
+			if (statusUpdateInterval !== null) {
+				clearInterval(statusUpdateInterval);
+				statusUpdateInterval = null;
+			}
+			if (timeUpdateInterval !== null) {
+				clearInterval(timeUpdateInterval);
+				timeUpdateInterval = null;
+			}
 		};
 	});
 
 	onDestroy(() => {
-		if (statusUpdateInterval) {
+		if (statusUpdateInterval !== null) {
 			clearInterval(statusUpdateInterval);
+			statusUpdateInterval = null;
 		}
-		if (timeUpdateInterval) {
+		if (timeUpdateInterval !== null) {
 			clearInterval(timeUpdateInterval);
+			timeUpdateInterval = null;
 		}
 		console.log('ReminderApp component destroyed, all timers cleared');
 	});
@@ -1251,23 +1277,25 @@
 														</div>
 
 														<div
-											class="overflow-hidden transition-all duration-800"
-											style="max-height: {hasNextReminder(reminder)
-												? '80px'
-												: '0px'}; padding-top: {hasNextReminder(reminder)
-												? '8px'
-												: '0px'}; margin-top: {hasNextReminder(reminder)
-												? '8px'
-												: '0px'}; transition-timing-function: cubic-bezier(0.25, 0.46, 0.45, 0.94);"
-										>
-											<div
-												class="text-muted-foreground flex items-start gap-2 pt-2 text-sm transition-opacity duration-800"
-												style="opacity: {hasNextReminder(reminder)
-													? '1'
-													: '0'}; transition-timing-function: cubic-bezier(0.25, 0.46, 0.45, 0.94); transition-delay: {hasNextReminder(reminder)
-													? '0ms'
-													: '200ms'};"
-											>
+															class="overflow-hidden transition-all duration-800"
+															style="max-height: {hasNextReminder(reminder)
+																? '80px'
+																: '0px'}; padding-top: {hasNextReminder(reminder)
+																? '8px'
+																: '0px'}; margin-top: {hasNextReminder(reminder)
+																? '8px'
+																: '0px'}; transition-timing-function: cubic-bezier(0.25, 0.46, 0.45, 0.94);"
+														>
+															<div
+																class="text-muted-foreground flex items-start gap-2 pt-2 text-sm transition-opacity duration-800"
+																style="opacity: {hasNextReminder(reminder)
+																	? '1'
+																	: '0'}; transition-timing-function: cubic-bezier(0.25, 0.46, 0.45, 0.94); transition-delay: {hasNextReminder(
+																	reminder
+																)
+																	? '0ms'
+																	: '200ms'};"
+															>
 																<div
 																	class="mt-2 h-2 w-2 flex-shrink-0 animate-pulse rounded-full bg-emerald-500"
 																></div>
