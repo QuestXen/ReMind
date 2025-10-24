@@ -5,6 +5,7 @@
 	import ReminderApp from '$lib/components/ReminderApp.svelte';
 	import Loading from '$lib/components/Loading.svelte';
 	import { reminders, settings, isLoading, loadingError } from '$lib/stores';
+	import { sanitizeReminderList } from '$lib/utils/validation';
 	import type { Reminder, AppSettings } from '$lib/stores';
 	import { setLocale } from './paraglide/runtime.js';
 	import * as m from './paraglide/messages.js';
@@ -83,6 +84,8 @@
 				invoke<Reminder[]>('load_reminders')
 			]);
 
+			const sanitizedReminders = sanitizeReminderList(loadedReminders);
+
 			const appSettings: AppSettings = {
 				language: (loadedSettings.language as 'en' | 'de') || 'en',
 				autostartEnabled: Boolean(loadedSettings.autostart_enabled),
@@ -93,7 +96,7 @@
 
 			// Update stores
 			settings.set(appSettings);
-			reminders.set(loadedReminders);
+			reminders.set(sanitizedReminders);
 			setLocale(appSettings.language as 'en' | 'de');
 
 			isLoading.set(false);
@@ -102,11 +105,11 @@
 
 			console.log('App data loaded successfully:', {
 				settings: appSettings,
-				remindersCount: loadedReminders.length
+				remindersCount: sanitizedReminders.length
 			});
 		} catch (error) {
 			console.error('Failed to load app data:', error);
-			
+
 			// Set error message for retry
 			if (retryCount < MAX_RETRIES) {
 				loadingError.set(m.connection_error_retry());
@@ -132,7 +135,7 @@
 	onMount(() => {
 		// Detect if app was started via autostart
 		isAutostart = detectAutostart();
-		
+
 		// Check if this is a reload after language change
 		if (localStorage.getItem('keepSettingsOpen') === 'true') {
 			skipUpdateCheck = true;
@@ -143,7 +146,7 @@
 				isLanguageChanging = false;
 			}, 300);
 		}
-		
+
 		let unlistenUpdateStart: (() => void) | undefined;
 		let unlistenUpdateInstalling: (() => void) | undefined;
 		let unlistenUpdateNotAvailable: (() => void) | undefined;
@@ -193,7 +196,7 @@
 				if (isAutostart) {
 					await new Promise((resolve) => setTimeout(resolve, 1500));
 				}
-				
+
 				const updateInfo = await checkForUpdates();
 
 				if (updateInfo?.available) {

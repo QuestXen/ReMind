@@ -17,7 +17,7 @@
 	}: Props = $props();
 
 	let progress = $state(0);
-	let progressInterval: NodeJS.Timeout;
+	let progressInterval: ReturnType<typeof setInterval> | null = null;
 
 	onMount(() => {
 		if (!error) {
@@ -30,7 +30,10 @@
 		}
 
 		return () => {
-			if (progressInterval) clearInterval(progressInterval);
+			if (progressInterval !== null) {
+				clearInterval(progressInterval);
+				progressInterval = null;
+			}
 		};
 	});
 </script>

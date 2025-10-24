@@ -27,6 +27,13 @@ export interface AppSettings {
 	[key: string]: unknown;
 }
 
+export interface TimerStatus {
+	reminderId: string;
+	reminderName: string;
+	nextExecution: string | null;
+	isScheduled: boolean;
+}
+
 // Global Stores
 export const reminders: Writable<Reminder[]> = writable([]);
 export const settings: Writable<AppSettings> = writable({

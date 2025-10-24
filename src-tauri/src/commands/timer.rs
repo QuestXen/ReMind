@@ -6,7 +6,7 @@ use tokio::time::{sleep, Duration as TokioDuration};
 use tauri::{AppHandle, Manager, Emitter, Listener};
 use crate::commands::app_data::{Reminder, load_app_data, save_app_data, update_reminder_last_notified};
 use crate::commands::notifications::send_notification_with_settings;
-use log::{error, info};
+use log::{error, info, warn};
 
 #[derive(Clone)]
 pub struct TimerManager {
@@ -52,7 +52,19 @@ impl TimerManager {
         let next_execution = match Self::calculate_next_execution(&reminder, now) {
             Some(next) => next,
             None => {
-                info!("Cannot calculate next execution for reminder {}", reminder.id);
+                warn!("Cannot calculate next execution for reminder {}", reminder.id);
+
+                if reminder.interval == "specific" {
+                    let mut updated_reminder = reminder.clone();
+                    updated_reminder.active = false;
+                    updated_reminder.next_execution = None;
+                    Self::save_reminder(&self.app, &updated_reminder);
+
+                    if let Err(e) = self.app.emit("reminder-deactivated", &updated_reminder.id) {
+                        error!("Failed to emit reminder-deactivated event: {}", e);
+                    }
+                }
+
                 return;
             }
         };
@@ -138,6 +150,15 @@ impl TimerManager {
     }
 
     pub fn calculate_next_execution(reminder: &Reminder, now: DateTime<Utc>) -> Option<DateTime<Utc>> {
+        if reminder.interval != "specific" && (!reminder.interval_value.is_finite() || reminder.interval_value <= 0.0) {
+            warn!(
+                "Invalid interval value {} for reminder {}",
+                reminder.interval_value,
+                reminder.id
+            );
+            return None;
+        }
+
         match reminder.interval.as_str() {
             "minutes" => {
                 let total_seconds = (reminder.interval_value * 60.0) as i64;
