@@ -8,7 +8,7 @@
 	import { invoke } from '@tauri-apps/api/core';
 	import TitleBar from './TitleBar.svelte';
 	import { settings, updateSetting } from '$lib/stores';
-	import * as m from '../../paraglide/messages.js';
+        import m from '../../paraglide/messages';
 
 	interface SystemInfo {
 		app_version: string;

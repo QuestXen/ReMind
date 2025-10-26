@@ -22,4 +22,5 @@ dist-ssr
 !.env.example
 /src-tauri/target/
 /src-tauri/gen/schemas
+src/paraglide/generated/
 0_publish-tauri (windows-latest).txt

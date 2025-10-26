@@ -8,11 +8,11 @@ const host = process.env.TAURI_DEV_HOST;
 
 export default defineConfig({
 	plugins: [
-		paraglideVitePlugin({
-			project: './project.inlang',
-			outdir: './src/paraglide',
-			cleanOutdir: false
-		}),
+                paraglideVitePlugin({
+                        project: './project.inlang',
+                        outdir: './src/paraglide/generated',
+                        cleanOutdir: false
+                }),
 		svelte({ compilerOptions: { runes: true } }),
 		tailwindcss()
 	],
