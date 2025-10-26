@@ -36,7 +36,7 @@
 		sanitizeTimerStatusList,
 		sanitizeIntervalValue
 	} from '$lib/utils/validation';
-	import * as m from '../../paraglide/messages.js';
+        import m from '../../paraglide/messages';
 
 	function getCurrentLocale(): string {
 		return $settings.language === 'de' ? 'de-DE' : 'en-US';

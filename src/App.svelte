@@ -2,13 +2,12 @@
 	import { onMount } from 'svelte';
 	import { invoke } from '@tauri-apps/api/core';
 	import { listen } from '@tauri-apps/api/event';
-	import ReminderApp from '$lib/components/ReminderApp.svelte';
-	import Loading from '$lib/components/Loading.svelte';
-	import { reminders, settings, isLoading, loadingError } from '$lib/stores';
-	import { sanitizeReminderList } from '$lib/utils/validation';
-	import type { Reminder, AppSettings } from '$lib/stores';
-	import { setLocale } from './paraglide/runtime.js';
-	import * as m from './paraglide/messages.js';
+        import ReminderApp from '$lib/components/ReminderApp.svelte';
+        import Loading from '$lib/components/Loading.svelte';
+        import { reminders, settings, isLoading, loadingError } from '$lib/stores';
+        import { sanitizeReminderList, sanitizeAppSettings } from '$lib/utils/validation';
+        import { setLocale } from './paraglide/runtime';
+        import m from './paraglide/messages';
 
 	let retryCount = 0;
 	const MAX_RETRIES = 3;
@@ -35,13 +34,10 @@
 		pubDate?: string;
 	}
 
-	interface LoadedSettings {
-		autostart_enabled?: boolean;
-		theme?: string | null;
-		notification_sound?: boolean;
-		language?: string;
-		[key: string]: unknown;
-	}
+        interface AppStatePayload {
+                reminders: unknown;
+                settings: unknown;
+        }
 
 	async function checkForUpdates(): Promise<UpdateInfo | null> {
 		try {
@@ -79,25 +75,16 @@
 				await new Promise((resolve) => setTimeout(resolve, 500));
 			}
 
-			const [loadedSettings, loadedReminders] = await Promise.all([
-				invoke<LoadedSettings>('load_settings'),
-				invoke<Reminder[]>('load_reminders')
-			]);
+                        const { reminders: rawReminders, settings: rawSettings } =
+                                await invoke<AppStatePayload>('load_app_state');
 
-			const sanitizedReminders = sanitizeReminderList(loadedReminders);
+                        const sanitizedReminders = sanitizeReminderList(rawReminders);
+                        const appSettings = sanitizeAppSettings(rawSettings);
 
-			const appSettings: AppSettings = {
-				language: (loadedSettings.language as 'en' | 'de') || 'en',
-				autostartEnabled: Boolean(loadedSettings.autostart_enabled),
-				theme: typeof loadedSettings.theme === 'string' ? loadedSettings.theme : null,
-				notificationSound: loadedSettings.notification_sound !== false,
-				...loadedSettings
-			};
-
-			// Update stores
-			settings.set(appSettings);
-			reminders.set(sanitizedReminders);
-			setLocale(appSettings.language as 'en' | 'de');
+                        // Update stores
+                        settings.set(appSettings);
+                        reminders.set(sanitizedReminders);
+                        setLocale(appSettings.language as 'en' | 'de');
 
 			isLoading.set(false);
 			retryCount = 0;

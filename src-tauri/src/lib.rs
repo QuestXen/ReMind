@@ -1,18 +1,22 @@
 mod commands;
 use commands::app_data::{
-    add_reminder, delete_reminder, load_reminders, save_reminders, update_reminder,
-    update_reminder_preserve_timer, update_reminder_last_notified, load_settings, save_settings, update_setting, get_setting,
+    add_reminder, delete_reminder, get_setting, load_app_state, load_reminders, load_settings,
+    save_reminders, save_settings, update_reminder, update_reminder_last_notified,
+    update_reminder_preserve_timer, update_setting,
 };
 use commands::default::{read, write};
 use commands::notifications::{
-    request_permission, send_notification, send_notification_with_sound, 
-    send_reminder_notification, test_notification_sound, send_notification_with_settings,
-    test_notification_with_settings
+    request_permission, send_notification, send_notification_with_settings,
+    send_notification_with_sound, send_reminder_notification, test_notification_sound,
+    test_notification_with_settings,
 };
 use commands::system_info::get_system_info;
-use commands::tray::{handle_window_event, hide_window, quit_app, setup_system_tray, show_window, check_update_from_tray, update_tray_menu};
-use commands::updater::{check_for_updates, install_update, check_and_install_update};
-use commands::timer::{TimerManager, get_timer_status};
+use commands::timer::{get_timer_status, TimerManager};
+use commands::tray::{
+    check_update_from_tray, handle_window_event, hide_window, quit_app, setup_system_tray,
+    show_window, update_tray_menu,
+};
+use commands::updater::{check_and_install_update, check_for_updates, install_update};
 use tauri::Manager;
 
 #[allow(clippy::missing_panics_doc)]
@@ -21,7 +25,7 @@ pub fn run() {
     tauri::Builder::default()
         .plugin(tauri_plugin_autostart::init(
             tauri_plugin_autostart::MacosLauncher::LaunchAgent,
-            None
+            None,
         ))
         .plugin(tauri_plugin_updater::Builder::new().build())
         .setup(|app| {
@@ -90,7 +94,7 @@ pub fn run() {
 
             let timer_manager = TimerManager::new(app.handle().clone());
             app.manage(timer_manager.clone());
-            
+
             // Start timer manager in a proper async context
             let timer_manager_clone = timer_manager.clone();
             tauri::async_runtime::spawn(async move {
@@ -126,6 +130,7 @@ pub fn run() {
             update_reminder_preserve_timer,
             update_reminder_last_notified,
             load_settings,
+            load_app_state,
             save_settings,
             update_setting,
             get_setting,

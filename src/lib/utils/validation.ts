@@ -1,4 +1,4 @@
-import type { Reminder, ReminderColor, ReminderInterval, TimerStatus } from '$lib/stores';
+import type { Reminder, ReminderColor, ReminderInterval, TimerStatus, AppSettings } from '$lib/stores';
 
 const VALID_INTERVALS: ReminderInterval[] = [
 	'minutes',
@@ -118,9 +118,9 @@ export function sanitizeReminder(raw: unknown): Reminder | null {
 }
 
 export function sanitizeReminderList(value: unknown): Reminder[] {
-	if (!Array.isArray(value)) {
-		return [];
-	}
+        if (!Array.isArray(value)) {
+                return [];
+        }
 
 	const seenIds = new Set<string>();
 	const reminders: Reminder[] = [];
@@ -136,6 +136,46 @@ export function sanitizeReminderList(value: unknown): Reminder[] {
 	}
 
 	return reminders;
+}
+
+export function sanitizeAppSettings(value: unknown): AppSettings {
+        const defaults: AppSettings = {
+                language: 'en',
+                autostartEnabled: false,
+                theme: null,
+                notificationSound: true
+        };
+
+        if (typeof value !== 'object' || value === null) {
+                return { ...defaults };
+        }
+
+        const record = value as Record<string, unknown>;
+
+        const rawLanguage = typeof record.language === 'string' ? record.language.trim() : '';
+        const normalizedLanguage = rawLanguage === 'de' ? 'de' : 'en';
+
+        const autostartEnabled =
+                typeof record.autostartEnabled === 'boolean'
+                        ? record.autostartEnabled
+                        : typeof record.autostart_enabled === 'boolean'
+                                ? record.autostart_enabled
+                                : defaults.autostartEnabled;
+
+        const theme = typeof record.theme === 'string' && record.theme.trim().length > 0 ? record.theme : null;
+
+        const notificationSound =
+                typeof record.notificationSound === 'boolean'
+                        ? record.notificationSound
+                        : record.notification_sound !== false;
+
+        return {
+                ...record,
+                language: normalizedLanguage,
+                autostartEnabled,
+                theme,
+                notificationSound
+        } as AppSettings;
 }
 
 function sanitizeTimerStatus(raw: unknown): TimerStatus | null {

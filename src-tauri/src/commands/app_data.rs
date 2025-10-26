@@ -6,7 +6,6 @@ use std::fs;
 use std::path::PathBuf;
 use tauri::{AppHandle, Manager};
 
-
 const CURRENT_DATA_VERSION: u32 = 2;
 
 // Version history:
@@ -26,7 +25,7 @@ pub struct Reminder {
     pub created_at: String,
     pub last_notified: Option<String>,
     pub active: bool,
-    pub next_execution: Option<String>,  // Neu: ISO-String für nächsten Ausführungszeitpunkt
+    pub next_execution: Option<String>, // Neu: ISO-String für nächsten Ausführungszeitpunkt
 }
 
 // Legacy reminder structure for migration support
@@ -89,6 +88,13 @@ pub struct AppData {
     pub settings: AppSettings,
 }
 
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct AppStateResponse {
+    pub reminders: Vec<Reminder>,
+    pub settings: AppSettings,
+}
+
 fn default_version() -> u32 {
     CURRENT_DATA_VERSION
 }
@@ -129,7 +135,8 @@ pub fn load_app_data(app: &AppHandle) -> Result<AppData, Error> {
         .map_err(|e| Error::Io(std::io::Error::new(std::io::ErrorKind::Other, e)))?;
 
     // Check version and migrate if necessary
-    let version = data_value.get("version")
+    let version = data_value
+        .get("version")
         .and_then(|v| v.as_u64())
         .unwrap_or(1) as u32; // Default to v1 if no version field
 
@@ -144,11 +151,17 @@ pub fn load_app_data(app: &AppHandle) -> Result<AppData, Error> {
         }
     } else if version < CURRENT_DATA_VERSION {
         // Older version, migrate
-        println!("Migrating app data from version {} to version {}", version, CURRENT_DATA_VERSION);
+        println!(
+            "Migrating app data from version {} to version {}",
+            version, CURRENT_DATA_VERSION
+        );
         migrate_and_save(app, &json_data, version)
     } else {
         // Future version, this shouldn't happen but handle gracefully
-        println!("Warning: Data version {} is newer than supported version {}. Using default data.", version, CURRENT_DATA_VERSION);
+        println!(
+            "Warning: Data version {} is newer than supported version {}. Using default data.",
+            version, CURRENT_DATA_VERSION
+        );
         Ok(AppData::default())
     }
 }
@@ -158,10 +171,13 @@ fn migrate_and_save(app: &AppHandle, json_data: &str, from_version: u32) -> Resu
         Ok(migrated_data) => {
             // Create backup before saving migrated data
             create_backup(app, json_data)?;
-            
+
             // Save the migrated data back to file
             save_app_data(app, &migrated_data)?;
-            println!("Successfully migrated app data from version {} to version {}", from_version, CURRENT_DATA_VERSION);
+            println!(
+                "Successfully migrated app data from version {} to version {}",
+                from_version, CURRENT_DATA_VERSION
+            );
             Ok(migrated_data)
         }
         Err(e) => {
@@ -178,10 +194,10 @@ fn create_backup(app: &AppHandle, json_data: &str) -> Result<(), Error> {
         .path()
         .app_data_dir()
         .map_err(|e| Error::Io(std::io::Error::new(std::io::ErrorKind::Other, e)))?;
-    
+
     let timestamp = chrono::Utc::now().format("%Y%m%d_%H%M%S");
     let backup_path = app_data_dir.join(format!("app_data_backup_{}.json", timestamp));
-    
+
     fs::write(backup_path, json_data)?;
     println!("Created backup of app data before migration");
     Ok(())
@@ -195,7 +211,7 @@ fn migrate_app_data(json_data: &str, from_version: u32) -> Result<AppData, Error
 
     // Apply migrations step by step from the current version to the target version
     let mut current_version = from_version;
-    
+
     while current_version < CURRENT_DATA_VERSION {
         match current_version {
             1 => {
@@ -211,7 +227,7 @@ fn migrate_app_data(json_data: &str, from_version: u32) -> Result<AppData, Error
             _ => {
                 return Err(Error::Io(std::io::Error::new(
                     std::io::ErrorKind::Other,
-                    format!("Unknown migration path from version {}", current_version)
+                    format!("Unknown migration path from version {}", current_version),
                 )));
             }
         }
@@ -219,7 +235,10 @@ fn migrate_app_data(json_data: &str, from_version: u32) -> Result<AppData, Error
 
     // Set the current version
     if let Some(obj) = data.as_object_mut() {
-        obj.insert("version".to_string(), serde_json::Value::Number(serde_json::Number::from(CURRENT_DATA_VERSION)));
+        obj.insert(
+            "version".to_string(),
+            serde_json::Value::Number(serde_json::Number::from(CURRENT_DATA_VERSION)),
+        );
     }
 
     // Parse the migrated data as AppData
@@ -232,7 +251,10 @@ fn migrate_app_data(json_data: &str, from_version: u32) -> Result<AppData, Error
 // Migration from v1 to v2: Add version field, active field to reminders, ensure settings structure
 fn migrate_v1_to_v2(data: &mut serde_json::Value) -> Result<(), Error> {
     let obj = data.as_object_mut().ok_or_else(|| {
-        Error::Io(std::io::Error::new(std::io::ErrorKind::Other, "Invalid JSON structure"))
+        Error::Io(std::io::Error::new(
+            std::io::ErrorKind::Other,
+            "Invalid JSON structure",
+        ))
     })?;
 
     // Migrate reminders if they exist
@@ -244,7 +266,7 @@ fn migrate_v1_to_v2(data: &mut serde_json::Value) -> Result<(), Error> {
                     if !reminder_obj.contains_key("active") {
                         reminder_obj.insert("active".to_string(), serde_json::Value::Bool(true));
                     }
-                    
+
                     // Ensure all required fields exist with defaults
                     if !reminder_obj.contains_key("lastNotified") {
                         reminder_obj.insert("lastNotified".to_string(), serde_json::Value::Null);
@@ -268,16 +290,25 @@ fn migrate_v1_to_v2(data: &mut serde_json::Value) -> Result<(), Error> {
         if let Some(settings_obj) = obj.get_mut("settings").and_then(|s| s.as_object_mut()) {
             // Add missing settings with defaults
             if !settings_obj.contains_key("autostartEnabled") {
-                settings_obj.insert("autostartEnabled".to_string(), serde_json::Value::Bool(false));
+                settings_obj.insert(
+                    "autostartEnabled".to_string(),
+                    serde_json::Value::Bool(false),
+                );
             }
             if !settings_obj.contains_key("theme") {
                 settings_obj.insert("theme".to_string(), serde_json::Value::Null);
             }
             if !settings_obj.contains_key("notificationSound") {
-                settings_obj.insert("notificationSound".to_string(), serde_json::Value::Bool(true));
+                settings_obj.insert(
+                    "notificationSound".to_string(),
+                    serde_json::Value::Bool(true),
+                );
             }
             if !settings_obj.contains_key("language") {
-                settings_obj.insert("language".to_string(), serde_json::Value::String("en".to_string()));
+                settings_obj.insert(
+                    "language".to_string(),
+                    serde_json::Value::String("en".to_string()),
+                );
             }
         }
     }
@@ -319,7 +350,7 @@ pub fn delete_reminder(app: AppHandle, reminder_id: String) -> Result<(), Error>
             timer_manager.cancel_reminder(&reminder_id_clone).await;
         });
     }
-    
+
     let mut app_data = load_app_data(&app).unwrap_or_default();
     app_data.reminders.retain(|r| r.id != reminder_id);
     save_app_data(&app, &app_data)?;
@@ -330,21 +361,22 @@ pub fn delete_reminder(app: AppHandle, reminder_id: String) -> Result<(), Error>
 #[tauri::command]
 pub fn add_reminder(app: AppHandle, mut reminder: Reminder) -> Result<(), Error> {
     // Calculate next execution before saving
-    reminder.next_execution = TimerManager::calculate_next_execution(&reminder, Utc::now()).map(|d| d.to_rfc3339());
-    
+    reminder.next_execution =
+        TimerManager::calculate_next_execution(&reminder, Utc::now()).map(|d| d.to_rfc3339());
+
     let mut app_data = load_app_data(&app).unwrap_or_default();
     app_data.reminders.push(reminder.clone());
     save_app_data(&app, &app_data)?;
-    
+
     // Schedule timer if active
     if reminder.active {
-            if let Some(timer_manager) = app.try_state::<TimerManager>() {
-                let timer_manager = timer_manager.inner().clone();
-                tauri::async_runtime::spawn(async move { 
-                    timer_manager.schedule_reminder(reminder).await; 
-                });
-            }
+        if let Some(timer_manager) = app.try_state::<TimerManager>() {
+            let timer_manager = timer_manager.inner().clone();
+            tauri::async_runtime::spawn(async move {
+                timer_manager.schedule_reminder(reminder).await;
+            });
         }
+    }
     Ok(())
 }
 
@@ -358,15 +390,16 @@ pub fn update_reminder(app: AppHandle, mut reminder: Reminder) -> Result<(), Err
             timer_manager.cancel_reminder(&reminder_id).await;
         });
     }
-    
+
     // Calculate next execution
-    reminder.next_execution = TimerManager::calculate_next_execution(&reminder, Utc::now()).map(|d| d.to_rfc3339());
-    
+    reminder.next_execution =
+        TimerManager::calculate_next_execution(&reminder, Utc::now()).map(|d| d.to_rfc3339());
+
     let mut app_data = load_app_data(&app).unwrap_or_default();
     if let Some(existing_reminder) = app_data.reminders.iter_mut().find(|r| r.id == reminder.id) {
         *existing_reminder = reminder.clone();
         save_app_data(&app, &app_data)?;
-        
+
         // Schedule new timer if active
         if reminder.active {
             if let Some(timer_manager) = app.try_state::<TimerManager>() {
@@ -387,13 +420,13 @@ pub fn update_reminder_preserve_timer(app: AppHandle, reminder: Reminder) -> Res
     if let Some(existing_reminder) = app_data.reminders.iter_mut().find(|r| r.id == reminder.id) {
         // Preserve timer-relevant fields
         let preserved_next_execution = existing_reminder.next_execution.clone();
-        
+
         // Update all fields
         *existing_reminder = reminder.clone();
-        
+
         // Restore preserved timer state
         existing_reminder.next_execution = preserved_next_execution;
-        
+
         save_app_data(&app, &app_data)?;
     }
 
@@ -429,6 +462,15 @@ pub fn save_settings(app: AppHandle, settings: AppSettings) -> Result<(), Error>
 pub fn load_settings(app: AppHandle) -> AppSettings {
     let app_data = load_app_data(&app).unwrap_or_default();
     app_data.settings
+}
+
+#[tauri::command]
+pub fn load_app_state(app: AppHandle) -> Result<AppStateResponse, Error> {
+    let app_data = load_app_data(&app).unwrap_or_default();
+    Ok(AppStateResponse {
+        reminders: app_data.reminders,
+        settings: app_data.settings,
+    })
 }
 
 #[tauri::command]
