@@ -33,7 +33,6 @@ pub fn get_system_info() -> SystemInfo {
         env::consts::ARCH.to_string()
     };
 
-    // Versuche Windows-Version zu ermitteln
     let os_version = if cfg!(target_os = "windows") {
         get_windows_version()
     } else {
