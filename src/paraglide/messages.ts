@@ -51,7 +51,7 @@ function resolveMessage(locale: Locale, key: MessageKey): string | undefined {
         return dictionary[key];
 }
 
-const messageProxy: MessageFunctions = new Proxy(
+const messages: MessageFunctions = new Proxy(
         {},
         {
                 get(_target, rawKey) {
@@ -78,4 +78,5 @@ const messageProxy: MessageFunctions = new Proxy(
 ) as MessageFunctions;
 
 export type { Locale, MessageFunctions };
-export default messageProxy;
+export { messages };
+export default messages;
