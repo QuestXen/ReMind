@@ -1,6 +1,6 @@
 <script lang="ts">
 	import { onMount } from 'svelte';
-	import * as m from '../../paraglide/messages.js';
+        import m from '../../paraglide/messages';
 
 	interface Props {
 		message?: string;
